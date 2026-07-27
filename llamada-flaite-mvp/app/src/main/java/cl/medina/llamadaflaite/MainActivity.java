@@ -7,6 +7,7 @@ import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.os.Bundle;
 import android.os.Handler;
@@ -29,15 +30,8 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.text.Normalizer;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Locale;
-import java.util.Random;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class MainActivity extends Activity implements RecognitionListener, TextToSpeech.OnInitListener {
     private static final int REQ_AUDIO = 41;
@@ -61,11 +55,20 @@ public class MainActivity extends Activity implements RecognitionListener, TextT
     private Button micButton;
     private Button speakerButton;
 
-    private boolean callActive = false;
-    private boolean muted = false;
+    private boolean callActive;
+    private boolean muted;
     private boolean speakerOn = true;
-    private boolean ttsReady = false;
-    private boolean waitingForSpeech = false;
+    private boolean ttsReady;
+    private boolean listening;
+    private boolean ttsSpeaking;
+    private int consecutiveRecognizerErrors;
+
+    private final Runnable ttsSafetyFallback = () -> {
+        if (!callActive || !ttsSpeaking) return;
+        ttsSpeaking = false;
+        statusView.setText("La voz no confirmó el término; te escucho igual…");
+        startListeningSoon(250);
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -142,7 +145,7 @@ public class MainActivity extends Activity implements RecognitionListener, TextT
         root.addView(heardView, params(-1, -2, 0, 0, 0, 15));
 
         root.addView(sectionTitle("RESPUESTA DEL PERSONAJE"), params(-1, -2, 0, 0, 0, 7));
-        replyView = card("Cuando comience la llamada, el personaje reaccionará a lo que digas.", Color.WHITE);
+        replyView = card("Inicia la llamada y espera a que diga: Escuchando…", Color.WHITE);
         root.addView(replyView, params(-1, -2, 0, 0, 0, 22));
 
         LinearLayout controls = new LinearLayout(this);
@@ -151,37 +154,51 @@ public class MainActivity extends Activity implements RecognitionListener, TextT
         root.addView(controls, params(-1, -2, 0, 0, 0, 12));
 
         speakerButton = controlButton("🔊\nAltavoz");
-        micButton = controlButton("🎙\nMicrófono");
+        micButton = controlButton("🎙\nHablar");
         callButton = controlButton("☎\nLlamar");
         callButton.setBackground(rounded(Color.rgb(42, 190, 105), 60));
         controls.addView(speakerButton, weightedButton());
         controls.addView(micButton, weightedButton());
         controls.addView(callButton, weightedButton());
 
-        TextView hint = label("Escucha un turno, responde con voz y vuelve a escuchar automáticamente.", 12, Color.rgb(133, 141, 154));
+        TextView hint = label("Toca Hablar para forzar un nuevo turno. Mantén presionado para silenciar.", 12, Color.rgb(133, 141, 154));
         hint.setGravity(Gravity.CENTER);
         root.addView(hint, params(-1, -2, 0, 8, 0, 0));
 
         callButton.setOnClickListener(v -> toggleCall());
-        micButton.setOnClickListener(v -> toggleMute());
+        micButton.setOnClickListener(v -> manualListen());
+        micButton.setOnLongClickListener(v -> {
+            toggleMute();
+            return true;
+        });
         speakerButton.setOnClickListener(v -> toggleSpeaker());
         setContentView(scroll);
     }
 
     private void configureSpeech() {
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            statusView.setText("No hay reconocimiento de voz disponible");
-            return;
-        }
-        recognizer = SpeechRecognizer.createSpeechRecognizer(this);
-        recognizer.setRecognitionListener(this);
         recognizerIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         recognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
         recognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-CL");
         recognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "es-CL");
         recognizerIntent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
         recognizerIntent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3);
-        recognizerIntent.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true);
+        recognizerIntent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1200L);
+        recognizerIntent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 800L);
+        recognizerIntent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 500L);
+        createRecognizer();
+    }
+
+    private void createRecognizer() {
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            recognizer = null;
+            if (statusView != null) statusView.setText("Android no tiene un servicio de reconocimiento de voz activo");
+            return;
+        }
+        if (recognizer != null) {
+            try { recognizer.destroy(); } catch (Exception ignored) { }
+        }
+        recognizer = SpeechRecognizer.createSpeechRecognizer(this);
+        recognizer.setRecognitionListener(this);
     }
 
     private void toggleCall() {
@@ -197,79 +214,152 @@ public class MainActivity extends Activity implements RecognitionListener, TextT
     }
 
     private void startCall() {
+        if (recognizer == null) createRecognizer();
         if (recognizer == null) {
-            toast("No hay reconocimiento de voz disponible");
+            toast("Activa el reconocimiento de voz de Google o del fabricante");
             return;
         }
         callActive = true;
         muted = false;
+        listening = false;
+        ttsSpeaking = false;
+        consecutiveRecognizerErrors = 0;
         engine.reset();
+        audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
+        audioManager.setSpeakerphoneOn(speakerOn);
         callButton.setText("✕\nColgar");
         callButton.setBackground(rounded(Color.rgb(224, 67, 67), 60));
-        micButton.setText("🎙\nMicrófono");
+        micButton.setText("🎙\nHablar");
         chronometer.setBase(SystemClock.elapsedRealtime());
         chronometer.setVisibility(View.VISIBLE);
         chronometer.start();
-        statusView.setText("Conectando…");
+        heardView.setText("Esperando tu voz…");
         String greeting = engine.greeting(personalitySpinner.getSelectedItemPosition(), intensitySpinner.getSelectedItemPosition());
         replyView.setText(greeting);
-        speak(greeting);
+        speakOrListen(greeting);
     }
 
     private void endCall() {
         callActive = false;
-        waitingForSpeech = false;
+        listening = false;
+        ttsSpeaking = false;
         handler.removeCallbacksAndMessages(null);
-        if (recognizer != null) recognizer.cancel();
+        if (recognizer != null) {
+            try { recognizer.cancel(); } catch (Exception ignored) { }
+        }
         if (tts != null) tts.stop();
         chronometer.stop();
         statusView.setText("Llamada finalizada");
         callButton.setText("☎\nLlamar");
         callButton.setBackground(rounded(Color.rgb(42, 190, 105), 60));
+        audioManager.setMode(AudioManager.MODE_NORMAL);
+    }
+
+    private void manualListen() {
+        if (!callActive) {
+            toast("Primero inicia la llamada");
+            return;
+        }
+        if (muted) {
+            muted = false;
+            micButton.setText("🎙\nHablar");
+        }
+        if (ttsSpeaking && tts != null) {
+            tts.stop();
+            ttsSpeaking = false;
+        }
+        if (recognizer != null && listening) {
+            try { recognizer.cancel(); } catch (Exception ignored) { }
+            listening = false;
+        }
+        startListeningSoon(250);
+    }
+
+    private void startListeningSoon(long delayMs) {
+        handler.postDelayed(this::beginListening, delayMs);
     }
 
     private void beginListening() {
-        if (!callActive || muted || recognizer == null || waitingForSpeech) return;
-        waitingForSpeech = true;
-        statusView.setText("Te está escuchando…");
+        if (!callActive || muted || listening || ttsSpeaking) return;
+        if (recognizer == null) createRecognizer();
+        if (recognizer == null) {
+            statusView.setText("Sin reconocimiento de voz. Revisa el servicio de Google");
+            return;
+        }
+        listening = true;
+        statusView.setText("Escuchando… habla ahora");
+        micButton.setText("🎙\nEscuchando");
         try {
             recognizer.startListening(recognizerIntent);
-        } catch (Exception e) {
-            waitingForSpeech = false;
-            statusView.setText("No se pudo iniciar el micrófono");
+        } catch (Exception firstError) {
+            listening = false;
+            createRecognizer();
+            handler.postDelayed(() -> {
+                if (!callActive || recognizer == null) return;
+                try {
+                    listening = true;
+                    recognizer.startListening(recognizerIntent);
+                } catch (Exception secondError) {
+                    listening = false;
+                    statusView.setText("No pude abrir el micrófono. Toca Hablar para reintentar");
+                }
+            }, 500);
         }
     }
 
-    private void speak(String text) {
+    private void speakOrListen(String text) {
         if (!callActive) return;
-        statusView.setText("El Brayan está hablando…");
-        if (!ttsReady) {
-            handler.postDelayed(() -> { if (callActive) speak(text); }, 650);
+        if (!ttsReady || tts == null) {
+            ttsSpeaking = false;
+            statusView.setText("Voz TTS no disponible; te escucho igual…");
+            startListeningSoon(350);
             return;
         }
-        HashMap<String, String> params = new HashMap<>();
-        params.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, UTTERANCE_ID);
-        tts.speak(text, TextToSpeech.QUEUE_FLUSH, params);
+        if (recognizer != null && listening) {
+            try { recognizer.cancel(); } catch (Exception ignored) { }
+            listening = false;
+        }
+        ttsSpeaking = true;
+        statusView.setText("El Brayan está hablando…");
+        Bundle params = new Bundle();
+        params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f);
+        int result = tts.speak(text, TextToSpeech.QUEUE_FLUSH, params, UTTERANCE_ID);
+        if (result == TextToSpeech.ERROR) {
+            ttsSpeaking = false;
+            statusView.setText("Falló la voz; te escucho igual…");
+            startListeningSoon(350);
+            return;
+        }
+        handler.removeCallbacks(ttsSafetyFallback);
+        long estimatedMs = Math.max(2500L, Math.min(8000L, text.length() * 70L));
+        handler.postDelayed(ttsSafetyFallback, estimatedMs);
     }
 
     private void handleRecognizedText(String text) {
-        if (!callActive || text == null || text.trim().isEmpty()) return;
+        if (!callActive || text == null || text.trim().isEmpty()) {
+            startListeningSoon(500);
+            return;
+        }
+        consecutiveRecognizerErrors = 0;
         heardView.setText(text);
+        statusView.setText("Analizando lo que dijiste…");
         String response = engine.reply(text, personalitySpinner.getSelectedItemPosition(), intensitySpinner.getSelectedItemPosition());
         replyView.setText(response);
-        speak(response);
+        speakOrListen(response);
     }
 
     private void toggleMute() {
         muted = !muted;
         if (muted) {
-            if (recognizer != null) recognizer.cancel();
-            waitingForSpeech = false;
+            if (recognizer != null) {
+                try { recognizer.cancel(); } catch (Exception ignored) { }
+            }
+            listening = false;
             micButton.setText("🔇\nSilenciado");
             statusView.setText("Micrófono silenciado");
         } else {
-            micButton.setText("🎙\nMicrófono");
-            if (callActive) beginListening();
+            micButton.setText("🎙\nHablar");
+            if (callActive) startListeningSoon(200);
         }
     }
 
@@ -282,61 +372,93 @@ public class MainActivity extends Activity implements RecognitionListener, TextT
 
     @Override
     public void onInit(int status) {
-        if (status == TextToSpeech.SUCCESS) {
-            ttsReady = true;
-            Locale chile = new Locale("es", "CL");
-            int result = tts.setLanguage(chile);
-            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                tts.setLanguage(new Locale("es", "ES"));
-            }
-            tts.setSpeechRate(1.03f);
-            tts.setPitch(0.92f);
-            tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
-                @Override public void onStart(String utteranceId) { }
-                @Override public void onError(String utteranceId) {
-                    handler.post(() -> {
-                        statusView.setText("Falló la voz TTS; la respuesta sigue visible");
-                        waitingForSpeech = false;
-                    });
-                }
-                @Override public void onDone(String utteranceId) {
-                    handler.postDelayed(() -> {
-                        waitingForSpeech = false;
-                        beginListening();
-                    }, 400);
-                }
-            });
-        } else {
-            statusView.setText("No se pudo iniciar la voz");
+        if (status != TextToSpeech.SUCCESS || tts == null) {
+            ttsReady = false;
+            if (callActive) startListeningSoon(250);
+            return;
         }
+        tts.setAudioAttributes(new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build());
+        Locale chile = new Locale("es", "CL");
+        int languageResult = tts.setLanguage(chile);
+        if (languageResult == TextToSpeech.LANG_MISSING_DATA || languageResult == TextToSpeech.LANG_NOT_SUPPORTED) {
+            languageResult = tts.setLanguage(new Locale("es", "ES"));
+        }
+        ttsReady = languageResult != TextToSpeech.LANG_MISSING_DATA && languageResult != TextToSpeech.LANG_NOT_SUPPORTED;
+        tts.setSpeechRate(1.03f);
+        tts.setPitch(0.92f);
+        tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+            @Override public void onStart(String utteranceId) { }
+
+            @Override public void onError(String utteranceId) {
+                handler.post(() -> {
+                    handler.removeCallbacks(ttsSafetyFallback);
+                    ttsSpeaking = false;
+                    if (callActive) {
+                        statusView.setText("La voz falló; te escucho igual…");
+                        startListeningSoon(300);
+                    }
+                });
+            }
+
+            @Override public void onDone(String utteranceId) {
+                handler.post(() -> {
+                    handler.removeCallbacks(ttsSafetyFallback);
+                    ttsSpeaking = false;
+                    if (callActive) startListeningSoon(300);
+                });
+            }
+        });
+        if (!ttsReady && callActive) startListeningSoon(250);
     }
 
-    @Override public void onReadyForSpeech(Bundle params) { statusView.setText("Habla ahora…"); }
-    @Override public void onBeginningOfSpeech() { statusView.setText("Analizando lo que dices…"); }
+    @Override public void onReadyForSpeech(Bundle params) {
+        statusView.setText("Escuchando… habla ahora");
+        micButton.setText("🎙\nEscuchando");
+    }
+
+    @Override public void onBeginningOfSpeech() {
+        statusView.setText("Te escuché; sigue hablando…");
+    }
+
     @Override public void onRmsChanged(float rmsdB) { }
     @Override public void onBufferReceived(byte[] buffer) { }
     @Override public void onEndOfSpeech() { statusView.setText("Pensando la respuesta…"); }
 
     @Override
     public void onError(int error) {
-        waitingForSpeech = false;
+        listening = false;
+        micButton.setText("🎙\nHablar");
         if (!callActive || muted) return;
-        if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
-            statusView.setText("No escuché bien; intenta otra vez");
-            handler.postDelayed(this::beginListening, 700);
-        } else if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
-            handler.postDelayed(this::beginListening, 900);
-        } else {
-            statusView.setText("Error de voz " + error + "; toca Micrófono para reintentar");
+        consecutiveRecognizerErrors++;
+
+        if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+            statusView.setText("Falta permiso de micrófono");
+            return;
         }
+        if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY || error == SpeechRecognizer.ERROR_CLIENT) {
+            createRecognizer();
+        }
+        if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+            statusView.setText("No entendí; vuelve a hablar…");
+        } else if (error == SpeechRecognizer.ERROR_NETWORK || error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT) {
+            statusView.setText("Problema de red del reconocedor; reintentando…");
+        } else {
+            statusView.setText("Reiniciando reconocimiento de voz…");
+        }
+        long retry = Math.min(2200L, 500L + consecutiveRecognizerErrors * 250L);
+        startListeningSoon(retry);
     }
 
     @Override
     public void onResults(Bundle results) {
-        waitingForSpeech = false;
+        listening = false;
+        micButton.setText("🎙\nHablar");
         ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
         if (matches != null && !matches.isEmpty()) handleRecognizedText(matches.get(0));
-        else handler.postDelayed(this::beginListening, 600);
+        else startListeningSoon(500);
     }
 
     @Override
@@ -359,43 +481,46 @@ public class MainActivity extends Activity implements RecognitionListener, TextT
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
         handler.removeCallbacksAndMessages(null);
         if (recognizer != null) recognizer.destroy();
-        if (tts != null) { tts.stop(); tts.shutdown(); }
+        if (tts != null) {
+            tts.stop();
+            tts.shutdown();
+        }
         if (audioManager != null) audioManager.setMode(AudioManager.MODE_NORMAL);
+        super.onDestroy();
     }
 
     private TextView sectionTitle(String text) {
-        TextView v = label(text, 11, Color.rgb(132, 141, 157));
-        v.setTypeface(Typeface.DEFAULT_BOLD);
-        return v;
+        TextView view = label(text, 11, Color.rgb(132, 141, 157));
+        view.setTypeface(Typeface.DEFAULT_BOLD);
+        return view;
     }
 
     private TextView card(String text, int color) {
-        TextView v = label(text, 16, color);
-        v.setPadding(dp(16), dp(14), dp(16), dp(14));
-        v.setMinHeight(dp(68));
-        v.setGravity(Gravity.CENTER_VERTICAL);
-        v.setBackground(rounded(Color.rgb(28, 33, 42), 18));
-        return v;
+        TextView view = label(text, 16, color);
+        view.setPadding(dp(16), dp(14), dp(16), dp(14));
+        view.setMinHeight(dp(68));
+        view.setGravity(Gravity.CENTER_VERTICAL);
+        view.setBackground(rounded(Color.rgb(28, 33, 42), 18));
+        return view;
     }
 
     private Button controlButton(String text) {
-        Button b = new Button(this);
-        b.setText(text);
-        b.setTextColor(Color.WHITE);
-        b.setTextSize(13);
-        b.setAllCaps(false);
-        b.setGravity(Gravity.CENTER);
-        b.setBackground(rounded(Color.rgb(43, 49, 61), 60));
-        return b;
+        Button button = new Button(this);
+        button.setText(text);
+        button.setTextColor(Color.WHITE);
+        button.setTextSize(13);
+        button.setAllCaps(false);
+        button.setGravity(Gravity.CENTER);
+        button.setBackground(rounded(Color.rgb(43, 49, 61), 60));
+        return button;
     }
 
     private LinearLayout.LayoutParams weightedButton() {
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(78), 1);
-        p.setMargins(dp(5), 0, dp(5), 0);
-        return p;
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(78), 1);
+        params.setMargins(dp(5), 0, dp(5), 0);
+        return params;
     }
 
     private void setSpinner(Spinner spinner, String[] values) {
@@ -414,141 +539,31 @@ public class MainActivity extends Activity implements RecognitionListener, TextT
     }
 
     private TextView label(String text, float size, int color) {
-        TextView v = new TextView(this);
-        v.setText(text);
-        v.setTextSize(size);
-        v.setTextColor(color);
-        return v;
+        TextView view = new TextView(this);
+        view.setText(text);
+        view.setTextSize(size);
+        view.setTextColor(color);
+        return view;
     }
 
     private GradientDrawable rounded(int color, int radiusDp) {
-        GradientDrawable d = new GradientDrawable();
-        d.setColor(color);
-        d.setCornerRadius(dp(radiusDp));
-        return d;
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(color);
+        drawable.setCornerRadius(dp(radiusDp));
+        return drawable;
     }
 
-    private LinearLayout.LayoutParams params(int w, int h, int left, int top, int right, int bottom) {
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(w, h);
-        p.setMargins(dp(left), dp(top), dp(right), dp(bottom));
-        return p;
+    private LinearLayout.LayoutParams params(int width, int height, int left, int top, int right, int bottom) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(width, height);
+        params.setMargins(dp(left), dp(top), dp(right), dp(bottom));
+        return params;
     }
 
-    private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
-    private void toast(String text) { Toast.makeText(this, text, Toast.LENGTH_SHORT).show(); }
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
+    }
 
-    private static class ConversationEngine {
-        private final Random random = new Random();
-        private final Set<String> rememberedNames = new HashSet<>();
-        private String lastTopic = "";
-        private int turns = 0;
-
-        void reset() { rememberedNames.clear(); lastTopic = ""; turns = 0; }
-
-        String greeting(int personality, int intensity) {
-            if (personality == 1) return decorate("Aló… ¿quién habla? ¿Qué necesitái?", intensity);
-            if (personality == 2) return decorate("Aló, hermano. Habla al tiro, ¿qué pasó?", intensity);
-            return decorate("Aló, hermanito, ¿cómo estai? Cuéntame qué onda.", intensity);
-        }
-
-        String reply(String raw, int personality, int intensity) {
-            turns++;
-            String text = normalize(raw);
-            rememberNames(raw);
-            updateTopic(text);
-            String base;
-
-            if (containsAny(text, "hola", "alo", "buenas", "como estai", "como estas")) {
-                base = pick("Wena, hermanito. Aquí estamos, ¿qué pasó?", "Todo bien por acá. Habla nomás.", "Wena po, te escucho. ¿Qué necesitái?");
-            } else if (containsAny(text, "quien eres", "quien soi", "como te llamai", "tu nombre")) {
-                base = "Soy el Brayan po, pero esta llamada es simulada. ¿Qué querí conversar?";
-            } else if (containsAny(text, "conoces", "cachai", "ubicas", "conocis")) {
-                String name = latestName();
-                base = name.isEmpty() ? pick("Depende de cuál loco hablai. Dame otra pista.", "Puede ser que lo cache, ¿de dónde es el compadre?", "Dime cómo se llama o por dónde se mueve.") : pick("Al " + name + " lo cacho de nombre, pero dime qué pasó.", "Sí po, al " + name + ". ¿Qué onda con ese loco?", "Puede ser que lo ubique. ¿El " + name + " de dónde?");
-            } else if (containsAny(text, "moto", "auto", "camioneta", "bicicleta")) {
-                base = pick("Ah, ya sé más o menos cuál decí. ¿Y qué hizo ahora?", "Con ese dato lo ubico mejor. ¿Lo andai buscando?", "Ya po, el del vehículo ese. Sigue contando.");
-            } else if (containsAny(text, "plata", "deuda", "pagar", "cobrar", "lucas")) {
-                base = personality == 1 ? "¿Y por qué me preguntai a mí por esa plata? Explica bien primero." : pick("Ya, pero hablemos claro: ¿cuántas lucas y desde cuándo?", "Chuta, tema de plata entonces. Cuéntame bien.", "¿Es una deuda real o estai practicando la conversación nomás?");
-            } else if (containsAny(text, "enojado", "molesto", "rabia", "pelea", "discutir")) {
-                base = personality == 2 ? "Ya, pero bájale un cambio. Se puede hablar firme sin dejar la cagá." : "Tranqui, hermano. Cuéntame qué pasó y vemos cómo responder sin calentarse de más.";
-            } else if (containsAny(text, "donde", "direccion", "vive", "queda")) {
-                base = "No tengo ubicaciones reales de personas. Para la simulación inventemos un lugar y seguimos la llamada.";
-            } else if (containsAny(text, "amenaza", "pegar", "matar", "hacerle algo", "arma")) {
-                base = "No me meto en amenazas ni daño a nadie. Practiquemos una respuesta firme, pero sin violencia.";
-            } else if (containsAny(text, "gracias", "vale", "buena")) {
-                base = pick("De nada po, pa eso estamos.", "Buena, hermanito. Cualquier cosa hablai.", "Ya po, quedó clarito entonces.");
-            } else if (containsAny(text, "chao", "adios", "nos vemos", "corta")) {
-                base = "Ya, nos vimos entonces. Cuídate y no dejí la cagá.";
-            } else if (!lastTopic.isEmpty() && turns > 1) {
-                base = contextualFollowUp(personality);
-            } else {
-                base = personalityResponse(personality);
-            }
-            return decorate(base, intensity);
-        }
-
-        private String contextualFollowUp(int personality) {
-            if (personality == 1) return pick("Ya, pero eso de " + lastTopic + " no me cuadra mucho. Explícate mejor.", "¿Y cómo sé que lo de " + lastTopic + " es tal como decí?", "Puede ser, pero me faltan datos de " + lastTopic + ".");
-            if (personality == 2) return pick("Entonces el tema es " + lastTopic + ". Dilo directo po, ¿qué querí hacer?", "Ya, con lo de " + lastTopic + " estamos claros. ¿Qué viene ahora?", "Mira, por " + lastTopic + " no conviene calentarse; hablemos bien.");
-            return pick("Ya, entiendo lo de " + lastTopic + ". ¿Y después qué pasó?", "Mish, entonces todo viene por " + lastTopic + ". Sigue contando.", "Ya po, te sigo. ¿Qué querí preguntarme sobre " + lastTopic + "?");
-        }
-
-        private String personalityResponse(int personality) {
-            if (personality == 1) return pick("Ya… pero contame la historia completa, no a medias.", "No sé, hermano, suena medio raro. Dame más contexto.", "¿Y por qué querí saber eso? Pregunto nomás.");
-            if (personality == 2) return pick("Ya po, habla sin tanta vuelta. ¿Qué pasó exactamente?", "Entiendo, pero dime al tiro qué necesitái.", "Está bien, pero no nos calentemos por las puras.");
-            return pick("Mish, ya po. ¿Y qué pasó después?", "Te cacho. Dame un poco más de contexto.", "Ya, hermanito, sigue hablando que te estoy escuchando.");
-        }
-
-        private String decorate(String base, int intensity) {
-            if (intensity <= 0) return base.replace("hermanito", "compadre").replace("querí", "quieres").replace("necesitái", "necesitas");
-            if (intensity == 1) return base;
-            String[] prefixes = {"Ya po, ", "Oe, ", "Mira, hermano, ", "Wena, pero "};
-            String result = base;
-            if (random.nextBoolean() && !base.startsWith("Ya") && !base.startsWith("Oe")) result = prefixes[random.nextInt(prefixes.length)] + lowerFirst(base);
-            return result.replace("compadre", "loco").replace("persona", "weón");
-        }
-
-        private void rememberNames(String raw) {
-            Matcher m = Pattern.compile("\\b(?:el|la|al)\\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,})\\b").matcher(raw);
-            while (m.find()) {
-                String candidate = m.group(1);
-                if (!candidate.equalsIgnoreCase("Brayan")) rememberedNames.add(candidate);
-            }
-        }
-
-        private String latestName() {
-            String latest = "";
-            for (String name : rememberedNames) latest = name;
-            return latest;
-        }
-
-        private void updateTopic(String text) {
-            if (containsAny(text, "moto", "auto", "camioneta")) lastTopic = "el vehículo";
-            else if (containsAny(text, "plata", "deuda", "lucas")) lastTopic = "la plata";
-            else if (containsAny(text, "trabajo", "pega", "jefe")) lastTopic = "la pega";
-            else if (containsAny(text, "vecino", "barrio", "cancha")) lastTopic = "el barrio";
-            else if (containsAny(text, "pareja", "polola", "pololo")) lastTopic = "la relación";
-            else if (text.length() > 12) {
-                String[] words = text.split(" ");
-                if (words.length >= 2) lastTopic = words[words.length - 2] + " " + words[words.length - 1];
-            }
-        }
-
-        private boolean containsAny(String text, String... terms) {
-            for (String term : terms) if (text.contains(term)) return true;
-            return false;
-        }
-
-        private String pick(String... values) { return values[random.nextInt(values.length)]; }
-
-        private String normalize(String value) {
-            String normalized = Normalizer.normalize(value.toLowerCase(Locale.ROOT), Normalizer.Form.NFD);
-            return normalized.replaceAll("\\p{M}", "").replaceAll("[^a-z0-9ñáéíóúü ]", " ").replaceAll("\\s+", " ").trim();
-        }
-
-        private String lowerFirst(String text) {
-            if (text.isEmpty()) return text;
-            return Character.toLowerCase(text.charAt(0)) + text.substring(1);
-        }
+    private void toast(String text) {
+        Toast.makeText(this, text, Toast.LENGTH_SHORT).show();
     }
 }
