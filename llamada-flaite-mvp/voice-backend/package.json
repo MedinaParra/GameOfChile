@@ -1,0 +1,13 @@
+{
+  "name": "llamada-flaite-neural-voice-backend",
+  "version": "0.3.0-alpha3",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js"
+  }
+}
