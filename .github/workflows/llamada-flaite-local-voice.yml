@@ -7,6 +7,10 @@ on:
     paths:
       - 'llamada-flaite-local-voice/**'
       - '.github/workflows/llamada-flaite-local-voice.yml'
+  pull_request:
+    paths:
+      - 'llamada-flaite-local-voice/**'
+      - '.github/workflows/llamada-flaite-local-voice.yml'
   workflow_dispatch:
 
 jobs:
