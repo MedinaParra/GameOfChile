@@ -52,7 +52,7 @@ jobs:
           find llamada-flaite-local-voice/app/src/main/assets -maxdepth 2 -type f -printf '%p %k KB\n'
           du -sh llamada-flaite-local-voice/app/src/main/assets
 
-      - name: Build alpha4 local voice APK
+      - name: Build alpha5 extreme local voice APK
         shell: bash
         run: |
           set -o pipefail
@@ -62,14 +62,14 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: LlamadaFlaite-alpha4-local-build-log
+          name: LlamadaFlaite-alpha5-local-build-log
           path: llamada-flaite-local-voice/build.log
           if-no-files-found: ignore
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: LlamadaFlaite-alpha4-local-voice-apk
+          name: LlamadaFlaite-alpha5-extreme-local-voice-apk
           path: llamada-flaite-local-voice/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           compression-level: 0
