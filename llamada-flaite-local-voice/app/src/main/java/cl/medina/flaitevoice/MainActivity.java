@@ -10,6 +10,7 @@ import android.media.AudioManager;
 import android.media.AudioTrack;
 import android.media.PlaybackParams;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.view.Gravity;
 import android.view.View;
 import android.view.Window;
@@ -27,9 +28,7 @@ import com.k2fsa.sherpa.onnx.OfflineTts;
 import com.k2fsa.sherpa.onnx.OfflineTtsConfig;
 import com.k2fsa.sherpa.onnx.TtsKt;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
@@ -63,9 +62,9 @@ public final class MainActivity extends Activity {
             "Wena, compare. ¿Dónde andái metío? Hace caleta que no aparecí por ningún lao.",
             "Oe, te estoy preguntando en buena. ¿Vai a venir o vai a puro dar jugo?",
             "Mira, hermano, la cuestión es cortita: hablai claro y no le pongái tanto color.",
-            "Aló... ¿quién habla? Oe, si vai a decir una cuestión, decila al tiro po.",
-            "Eh... ya po... ¿qué pasó ahora? Contame bien la cuestión y no me dejí esperando.",
-            "No, no, no... pará un poco, compare. Esa cuestión no fue así y vo lo sabí."
+            "Aló, ¿quién habla? Oe, si vai a decir una cuestión, decila al tiro po.",
+            "Ya po, ¿qué pasó ahora? Contame bien la cuestión y no me dejí esperando.",
+            "Pará un poco, compare. Esa cuestión no fue así y vo lo sabí."
     };
 
     @Override
@@ -89,19 +88,19 @@ public final class MainActivity extends Activity {
         root.setGravity(Gravity.CENTER_HORIZONTAL);
         scroll.addView(root, new ScrollView.LayoutParams(-1, -1));
 
-        TextView badge = label("100% LOCAL · VOZ ORIGINAL · SIN CLONAR", 11, Color.rgb(108, 229, 165));
+        TextView badge = label("100% LOCAL · TOMA COMPLETA · SIN CORTES", 11, Color.rgb(108, 229, 165));
         badge.setTypeface(Typeface.DEFAULT_BOLD);
         badge.setGravity(Gravity.CENTER);
         badge.setPadding(dp(16), 0, dp(16), 0);
         badge.setBackground(rounded(Color.rgb(31, 49, 43), 30));
         root.addView(badge, params(-2, dp(36), 0, 0, 0, 18));
 
-        TextView title = label("Voz flaite — perfil extremo", 27, Color.WHITE);
+        TextView title = label("Voz flaite — modo fluido", 27, Color.WHITE);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         title.setGravity(Gravity.CENTER);
         root.addView(title, params(-1, -2, 0, 0, 0, 6));
 
-        TextView subtitle = label("Actuación nasal, áspera y quebrada basada en rasgos acústicos", 14, Color.rgb(174, 180, 190));
+        TextView subtitle = label("Espera la generación completa y reproduce una sola toma continua", 14, Color.rgb(174, 180, 190));
         subtitle.setGravity(Gravity.CENTER);
         root.addView(subtitle, params(-1, -2, 0, 0, 0, 18));
 
@@ -109,7 +108,7 @@ public final class MainActivity extends Activity {
         root.addView(statusView, params(-1, -2, 0, 0, 0, 16));
 
         TextView analysis = card(
-                "Perfil del audio: cambios grandes de tono, entradas explosivas, energía irregular y énfasis nasal. La identidad vocal no se copia.",
+                "Alpha6 prioriza fluidez: una inferencia completa, mayor calidad y audio precargado antes de reproducir.",
                 Color.rgb(190, 199, 213)
         );
         root.addView(analysis, params(-1, -2, 0, 0, 0, 16));
@@ -137,7 +136,7 @@ public final class MainActivity extends Activity {
                 "Voz 0", "Voz 1", "Voz 2", "Voz 3", "Voz 4",
                 "Voz 5", "Voz 6", "Voz 7", "Voz 8", "Voz 9"
         });
-        setSpinner(intensitySpinner, new String[]{"Flaite suave", "Flaite medio", "Flaite terrible"});
+        setSpinner(intensitySpinner, new String[]{"Flaite suave", "Flaite medio", "Flaite marcado"});
         speakerSpinner.setSelection(6);
         intensitySpinner.setSelection(2);
         optionsTop.addView(speakerSpinner, new LinearLayout.LayoutParams(0, dp(54), 1));
@@ -147,24 +146,24 @@ public final class MainActivity extends Activity {
 
         profileSpinner = new Spinner(this);
         setSpinner(profileSpinner, new String[]{
-                "Nasal quebrado",
-                "Ronco callejero",
-                "Viejo choro acelerado",
-                "Quiebre extremo"
+                "Natural callejero",
+                "Nasal natural",
+                "Ronco fluido",
+                "Flaite fluido"
         });
         profileSpinner.setSelection(3);
         root.addView(profileSpinner, params(-1, dp(54), 0, 0, 0, 10));
 
         speedSpinner = new Spinner(this);
-        setSpinner(speedSpinner, new String[]{"Calmado 0,96×", "Natural 1,00×", "Acelerado 1,08×", "Desbocado 1,14×"});
-        speedSpinner.setSelection(2);
+        setSpinner(speedSpinner, new String[]{"Pausado 0,96×", "Natural 1,00×", "Ágil 1,04×", "Rápido 1,08×"});
+        speedSpinner.setSelection(1);
         root.addView(speedSpinner, params(-1, dp(54), 0, 0, 0, 15));
 
-        root.addView(sectionTitle("ASÍ LO VA A ACTUAR"), params(-1, -2, 0, 0, 0, 7));
+        root.addView(sectionTitle("ASÍ LO VA A DECIR"), params(-1, -2, 0, 0, 0, 7));
         spokenView = card("El texto adaptado aparecerá aquí.", Color.rgb(214, 219, 228));
         root.addView(spokenView, params(-1, -2, 0, 0, 0, 18));
 
-        speakButton = actionButton("▶  HABLAR TERRIBLE FLAITE", Color.rgb(42, 190, 105));
+        speakButton = actionButton("▶  GENERAR TOMA COMPLETA", Color.rgb(42, 190, 105));
         speakButton.setEnabled(false);
         root.addView(speakButton, params(-1, dp(60), 0, 0, 0, 10));
 
@@ -180,7 +179,7 @@ public final class MainActivity extends Activity {
         lowerButtons.addView(stopButton, stopParams);
 
         TextView note = label(
-                "Alpha5 experimental: genera una voz original. No contiene ni reutiliza el audio de la persona del video.",
+                "La generación tarda más porque la frase se prepara completa antes de sonar. No se divide ni se transmite por partes.",
                 12,
                 Color.rgb(133, 141, 154)
         );
@@ -190,7 +189,7 @@ public final class MainActivity extends Activity {
         speakButton.setOnClickListener(v -> synthesize());
         randomButton.setOnClickListener(v -> {
             inputView.setText(samplePhrases[random.nextInt(samplePhrases.length)]);
-            spokenView.setText("Pulsa Hablar para aplicar la actuación.");
+            spokenView.setText("Pulsa Generar para preparar una toma completa.");
         });
         stopButton.setOnClickListener(v -> stopPlayback());
         setContentView(scroll);
@@ -223,7 +222,7 @@ public final class MainActivity extends Activity {
                 );
                 tts = new OfflineTts(getAssets(), config);
                 runOnUiThread(() -> {
-                    statusView.setText("Modelo listo. Parte con Voz 6 + Quiebre extremo.");
+                    statusView.setText("Modelo listo. Parte con Voz 6 + Flaite fluido + velocidad natural.");
                     speakButton.setEnabled(true);
                 });
             } catch (Throwable error) {
@@ -243,55 +242,40 @@ public final class MainActivity extends Activity {
         int intensity = intensitySpinner.getSelectedItemPosition();
         int speaker = speakerSpinner.getSelectedItemPosition();
         VoiceProfile profile = selectedProfile();
-        float globalSpeed = selectedSpeed();
-        String performedText = makeFlaite(source, intensity);
+        float speed = clamp(selectedSpeed() * profile.generationSpeed, 0.90f, 1.12f);
+        String performedText = makeFlaiteNatural(source, intensity);
         spokenView.setText(performedText);
-        List<String> segments = splitForPerformance(performedText);
 
         generating = true;
         stopRequested = false;
         speakButton.setEnabled(false);
-        statusView.setText("Preparando actuación local…");
+        statusView.setText("Generando la toma completa… puede tardar un poco.");
 
         executor.execute(() -> {
+            long started = SystemClock.elapsedRealtime();
             try {
-                for (int i = 0; i < segments.size() && !stopRequested; i++) {
-                    String segment = segments.get(i).trim();
-                    if (segment.isEmpty()) continue;
+                GenerationConfig generation = new GenerationConfig(
+                        0.10f,
+                        speed,
+                        speaker,
+                        null,
+                        0,
+                        null,
+                        16,
+                        Collections.singletonMap("lang", "es")
+                );
 
-                    float segmentVariation = 1.0f + randomRange(-profile.speedJitter, profile.speedJitter);
-                    float generationSpeed = clamp(globalSpeed * profile.generationSpeed * segmentVariation, 0.82f, 1.35f);
-                    GenerationConfig generation = new GenerationConfig(
-                            0.10f,
-                            generationSpeed,
-                            speaker,
-                            null,
-                            0,
-                            null,
-                            8,
-                            Collections.singletonMap("lang", "es")
-                    );
-
-                    final int current = i + 1;
-                    final int total = segments.size();
-                    runOnUiThread(() -> statusView.setText("Actuando fragmento " + current + " de " + total + "…"));
-                    GeneratedAudio audio = tts.generateWithConfig(segment, generation);
-                    if (audio.getSamples().length == 0) {
-                        throw new IllegalStateException("el modelo no produjo audio");
-                    }
-
-                    float[] processed = processVoice(audio.getSamples(), audio.getSampleRate(), profile, i);
-                    playFloatAudio(processed, audio.getSampleRate(), profile, i);
-                    if (!stopRequested && i + 1 < segments.size()) {
-                        try {
-                            Thread.sleep(55L + random.nextInt(120));
-                        } catch (InterruptedException interrupted) {
-                            Thread.currentThread().interrupt();
-                            break;
-                        }
-                    }
+                GeneratedAudio audio = tts.generateWithConfig(performedText, generation);
+                if (audio.getSamples().length == 0) {
+                    throw new IllegalStateException("el modelo no produjo audio");
                 }
-                runOnUiThread(() -> statusView.setText(stopRequested ? "Reproducción detenida." : "Listo. Cambia perfil o voz y compara."));
+
+                runOnUiThread(() -> statusView.setText("Suavizando y precargando la voz…"));
+                float[] processed = processContinuousVoice(audio.getSamples(), audio.getSampleRate(), profile);
+                long elapsed = SystemClock.elapsedRealtime() - started;
+                runOnUiThread(() -> statusView.setText("Toma lista en " + (elapsed / 1000.0f) + " s. Reproduciendo sin cortes…"));
+                playBufferedAudio(processed, audio.getSampleRate(), profile);
+                runOnUiThread(() -> statusView.setText(stopRequested ? "Reproducción detenida." : "Listo. La toma se reprodujo completa."));
             } catch (Throwable error) {
                 runOnUiThread(() -> statusView.setText("Falló la generación local: " + safeMessage(error)));
             } finally {
@@ -301,33 +285,7 @@ public final class MainActivity extends Activity {
         });
     }
 
-    private List<String> splitForPerformance(String text) {
-        String normalized = text.replace(";", "; ").replace("…", "… ").replaceAll("\\s+", " ").trim();
-        String[] rough = normalized.split("(?<=[,;.!?…])\\s+");
-        List<String> result = new ArrayList<>();
-        for (String part : rough) {
-            String value = part.trim();
-            if (value.isEmpty()) continue;
-            if (value.length() <= 105) {
-                result.add(value);
-                continue;
-            }
-            String[] words = value.split(" ");
-            StringBuilder chunk = new StringBuilder();
-            for (String word : words) {
-                if (chunk.length() + word.length() + 1 > 90 && chunk.length() > 0) {
-                    result.add(chunk.toString().trim());
-                    chunk.setLength(0);
-                }
-                chunk.append(word).append(' ');
-            }
-            if (chunk.length() > 0) result.add(chunk.toString().trim());
-        }
-        if (result.isEmpty()) result.add(text);
-        return result;
-    }
-
-    private float[] processVoice(float[] input, int sampleRate, VoiceProfile profile, int segmentIndex) {
+    private float[] processContinuousVoice(float[] input, int sampleRate, VoiceProfile profile) {
         float[] output = new float[input.length];
         double dt = 1.0 / Math.max(8000, sampleRate);
         double highPassRc = 1.0 / (2.0 * Math.PI * profile.highPassHz);
@@ -339,10 +297,11 @@ public final class MainActivity extends Activity {
         float highPassed = 0.0f;
         float nasalFast = 0.0f;
         float nasalSlow = 0.0f;
+        float envelope = 0.0f;
         float peak = 0.001f;
-        float tanhDrive = (float) Math.tanh(profile.drive);
-        double flutterPhase = random.nextDouble() * Math.PI * 2.0;
-        double raspPhase = random.nextDouble() * Math.PI * 2.0;
+        float tanhDrive = Math.max(0.1f, (float) Math.tanh(profile.drive));
+        float attack = (float) Math.exp(-1.0 / (0.006 * sampleRate));
+        float release = (float) Math.exp(-1.0 / (0.090 * sampleRate));
 
         for (int i = 0; i < input.length; i++) {
             float x = input[i];
@@ -354,40 +313,34 @@ public final class MainActivity extends Activity {
             float nasalBand = nasalFast - nasalSlow;
 
             float y = highPassed + profile.nasalAmount * nasalBand;
-            double time = i / (double) sampleRate;
-            float flutter = 1.0f + profile.flutterAmount * (float) Math.sin(
-                    2.0 * Math.PI * profile.flutterHz * time + flutterPhase
-            );
-            float roughness = 1.0f + profile.roughAmplitude * (float) Math.sin(
-                    2.0 * Math.PI * profile.roughHz * time + raspPhase
-            );
-            y *= flutter * roughness;
+            y = (float) Math.tanh(y * profile.drive) / tanhDrive;
 
-            if (Math.abs(y) > 0.012f) {
-                y += (random.nextFloat() * 2.0f - 1.0f) * profile.breathNoise;
-            }
-
-            y = (float) Math.tanh(y * profile.drive) / Math.max(0.1f, tanhDrive);
             float absolute = Math.abs(y);
-            if (absolute > profile.compressionThreshold) {
-                float excess = absolute - profile.compressionThreshold;
-                absolute = profile.compressionThreshold + excess / profile.compressionRatio;
-                y = Math.copySign(absolute, y);
+            if (absolute > envelope) {
+                envelope = attack * envelope + (1.0f - attack) * absolute;
+            } else {
+                envelope = release * envelope + (1.0f - release) * absolute;
             }
 
-            if (profile.microBreaks && i > sampleRate / 5) {
-                int period = Math.max(1, sampleRate / 7);
-                int position = (i + segmentIndex * 977) % period;
-                if (position < 18) y *= position / 18.0f;
+            if (envelope > profile.compressionThreshold) {
+                float compressed = profile.compressionThreshold
+                        + (envelope - profile.compressionThreshold) / profile.compressionRatio;
+                float gainReduction = compressed / Math.max(0.0001f, envelope);
+                y *= gainReduction;
             }
 
             output[i] = y;
             peak = Math.max(peak, Math.abs(y));
         }
 
-        float gain = Math.min(1.55f, 0.93f / peak);
+        float gain = Math.min(profile.outputGain, 0.94f / peak);
+        int fadeSamples = Math.min(output.length / 4, Math.max(1, sampleRate / 50));
         for (int i = 0; i < output.length; i++) {
-            output[i] *= gain;
+            float fade = 1.0f;
+            if (i < fadeSamples) fade = i / (float) fadeSamples;
+            int remaining = output.length - 1 - i;
+            if (remaining < fadeSamples) fade = Math.min(fade, remaining / (float) fadeSamples);
+            output[i] *= gain * Math.max(0.0f, fade);
         }
         return output;
     }
@@ -397,14 +350,14 @@ public final class MainActivity extends Activity {
         return clamp(value, 0.001f, 0.95f);
     }
 
-    private void playFloatAudio(float[] samples, int sampleRate, VoiceProfile profile, int segmentIndex) {
+    private void playBufferedAudio(float[] samples, int sampleRate, VoiceProfile profile) {
         stopPlaybackInternal();
         int minimum = AudioTrack.getMinBufferSize(
                 sampleRate,
                 AudioFormat.CHANNEL_OUT_MONO,
                 AudioFormat.ENCODING_PCM_FLOAT
         );
-        if (minimum < 4096) minimum = 4096;
+        int requestedBytes = Math.max(minimum, samples.length * 4);
 
         AudioAttributes attributes = new AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -418,28 +371,72 @@ public final class MainActivity extends Activity {
         AudioTrack track = new AudioTrack.Builder()
                 .setAudioAttributes(attributes)
                 .setAudioFormat(format)
-                .setBufferSizeInBytes(minimum)
-                .setTransferMode(AudioTrack.MODE_STREAM)
+                .setBufferSizeInBytes(requestedBytes)
+                .setTransferMode(AudioTrack.MODE_STATIC)
                 .build();
 
-        float pitchDirection = (segmentIndex % 3 == 0 ? 1.0f : segmentIndex % 3 == 1 ? -0.55f : 0.35f);
-        float pitch = clamp(profile.pitch + pitchDirection * profile.pitchSwing + randomRange(-0.018f, 0.018f), 0.78f, 1.32f);
-        float playbackSpeed = clamp(profile.playbackSpeed + randomRange(-0.015f, 0.025f), 0.88f, 1.18f);
+        if (track.getState() != AudioTrack.STATE_INITIALIZED) {
+            try { track.release(); } catch (Throwable ignored) { }
+            playStreamingFallback(samples, sampleRate, profile);
+            return;
+        }
+
         try {
             PlaybackParams params = new PlaybackParams();
-            params.setPitch(pitch);
-            params.setSpeed(playbackSpeed);
+            params.setPitch(profile.pitch);
+            params.setSpeed(profile.playbackSpeed);
             track.setPlaybackParams(params);
         } catch (Throwable ignored) {
-            // Algunos fabricantes ignoran pitch independiente; el DSP y la velocidad TTS siguen activos.
+            // Algunos fabricantes no permiten modificar pitch y velocidad por separado.
+        }
+
+        int offset = 0;
+        while (offset < samples.length && !stopRequested) {
+            int written = track.write(samples, offset, samples.length - offset, AudioTrack.WRITE_BLOCKING);
+            if (written <= 0) break;
+            offset += written;
+        }
+        if (offset <= 0 || stopRequested) {
+            try { track.release(); } catch (Throwable ignored) { }
+            return;
         }
 
         currentTrack = track;
         track.play();
+        while (!stopRequested && track.getPlaybackHeadPosition() < offset) {
+            SystemClock.sleep(18L);
+        }
+        stopPlaybackInternal();
+    }
+
+    private void playStreamingFallback(float[] samples, int sampleRate, VoiceProfile profile) {
+        int minimum = AudioTrack.getMinBufferSize(
+                sampleRate,
+                AudioFormat.CHANNEL_OUT_MONO,
+                AudioFormat.ENCODING_PCM_FLOAT
+        );
+        if (minimum < 16384) minimum = 16384;
+        AudioTrack track = new AudioTrack.Builder()
+                .setAudioAttributes(new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build())
+                .setAudioFormat(new AudioFormat.Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
+                        .setSampleRate(sampleRate)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .build())
+                .setBufferSizeInBytes(minimum)
+                .setTransferMode(AudioTrack.MODE_STREAM)
+                .build();
+        try {
+            track.setPlaybackParams(new PlaybackParams().setPitch(profile.pitch).setSpeed(profile.playbackSpeed));
+        } catch (Throwable ignored) { }
+        currentTrack = track;
+        track.play();
         int offset = 0;
-        final int chunk = 4096;
         while (offset < samples.length && !stopRequested) {
-            int count = Math.min(chunk, samples.length - offset);
+            int count = Math.min(8192, samples.length - offset);
             int written = track.write(samples, offset, count, AudioTrack.WRITE_BLOCKING);
             if (written <= 0) break;
             offset += written;
@@ -464,8 +461,10 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private String makeFlaite(String source, int intensity) {
+    private String makeFlaiteNatural(String source, int intensity) {
         String text = source.trim()
+                .replace('…', ',')
+                .replaceAll("\\.{3,}", ",")
                 .replaceAll("(?i)\\boye\\b", "oe")
                 .replaceAll("(?i)\\bpara el\\b", "pal")
                 .replaceAll("(?i)\\bpara la\\b", "pa la")
@@ -482,7 +481,6 @@ public final class MainActivity extends Activity {
                 .replaceAll("(?i)\\bmetido\\b", "metío")
                 .replaceAll("(?i)\\benojado\\b", "enojáo")
                 .replaceAll("(?i)\\bcansado\\b", "cansáo")
-                .replaceAll("(?i)\\btodo\\b", "to")
                 .replaceAll("(?i)\\bnada\\b", "ná")
                 .replaceAll("(?i)\\bverdad\\b", "verdá")
                 .replaceAll("(?i)\\bentonces\\b", "entonce")
@@ -491,73 +489,68 @@ public final class MainActivity extends Activity {
                 .replaceAll("(?i)\\bamigo\\b", "compare")
                 .replaceAll("(?i)\\bpersona\\b", "loco")
                 .replaceAll("(?i)\\bustedes\\b", "ustede")
-                .replaceAll("(?i)\\bnosotros\\b", "nosotro");
-
-        text = text.replaceAll("(?i)\\b([a-záéíóúñ]+)ado\\b", "$1ao")
-                .replaceAll("(?i)\\b([a-záéíóúñ]+)ido\\b", "$1ío");
+                .replaceAll("(?i)\\bnosotros\\b", "nosotro")
+                .replaceAll("(?i)\\b([a-záéíóúñ]+)ado\\b", "$1ao")
+                .replaceAll("(?i)\\b([a-záéíóúñ]+)ido\\b", "$1ío")
+                .replaceAll("\\s*,\\s*", ", ")
+                .replaceAll("\\s+", " ")
+                .trim();
 
         if (intensity == 0) {
-            return ensurePrefix(text, "Oe, compare… ") + " po.";
+            return ensureNaturalPrefix(text, "Oe, compare, ");
         }
         if (intensity == 1) {
-            return ensurePrefix(text, "Wena, hermano… eh… ") + " ya po.";
+            String result = ensureNaturalPrefix(text, "Wena, hermano, ");
+            return ensureNaturalEnding(result, " ya po.");
         }
 
         String[] starts = {
-                "¡Oe, oe, oe!… mira… ",
-                "Ya po, hermano… eh… ",
-                "Wena, compare… oe… ",
-                "Mira, loco… la cuestión es así… ",
-                "No, no, no… pará un poco… "
+                "Oe, hermano, ",
+                "Ya po, compare, ",
+                "Mira, loco, ",
+                "Wena, hermano, "
         };
-        String[] endings = {
-                "… ¿cachái o no?",
-                "… ya po, hablai al tiro.",
-                "… no me dejí esperando, po.",
-                "… esa es la firme.",
-                "… ¿me entendí?"
-        };
-        String result = ensurePrefix(text, starts[random.nextInt(starts.length)]);
-        result = result.replaceAll("\\.\\s*", "… ")
-                .replaceAll(",\\s*", ", eh… ")
-                .replaceAll("\\?\\s*", "… ¿cachái? ");
-        if (!result.toLowerCase(Locale.ROOT).contains(" po")) result += " po";
-        if (random.nextBoolean()) result += endings[random.nextInt(endings.length)];
-        return result.replaceAll("\\s+", " ").trim();
+        String result = ensureNaturalPrefix(text, starts[random.nextInt(starts.length)]);
+        return ensureNaturalEnding(result, " po.");
     }
 
-    private String ensurePrefix(String text, String prefix) {
+    private String ensureNaturalPrefix(String text, String prefix) {
         String lower = text.toLowerCase(Locale.ROOT);
-        if (lower.startsWith("oe") || lower.startsWith("wena") || lower.startsWith("ya po") || lower.startsWith("mira") || lower.startsWith("no, no")) {
+        if (lower.startsWith("oe") || lower.startsWith("wena") || lower.startsWith("ya po") || lower.startsWith("mira")) {
             return text;
         }
         return prefix + Character.toLowerCase(text.charAt(0)) + text.substring(1);
     }
 
+    private String ensureNaturalEnding(String text, String ending) {
+        String lower = text.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(" po.") || lower.endsWith(" po") || lower.endsWith(" ya po.")) return text;
+        if (text.endsWith(".") || text.endsWith("?") || text.endsWith("!")) {
+            return text.substring(0, text.length() - 1) + ending;
+        }
+        return text + ending;
+    }
+
     private VoiceProfile selectedProfile() {
         switch (profileSpinner.getSelectedItemPosition()) {
             case 0:
-                return new VoiceProfile(1.09f, 0.060f, 1.04f, 1.05f, 0.050f, 1.85f, 0.62f, 760f, 1650f, 115f, 0.035f, 6.2f, 0.025f, 27f, 0.0017f, 0.36f, 3.0f, false);
+                return new VoiceProfile(1.00f, 0.98f, 1.00f, 78f, 700f, 1450f, 0.13f, 1.24f, 0.52f, 2.0f, 1.20f);
             case 1:
-                return new VoiceProfile(0.92f, 0.035f, 1.00f, 1.02f, 0.035f, 2.55f, 0.30f, 620f, 1400f, 95f, 0.022f, 5.0f, 0.050f, 31f, 0.0032f, 0.32f, 4.0f, false);
+                return new VoiceProfile(0.99f, 1.03f, 1.00f, 82f, 760f, 1650f, 0.25f, 1.28f, 0.50f, 2.1f, 1.22f);
             case 2:
-                return new VoiceProfile(1.02f, 0.070f, 1.07f, 1.11f, 0.065f, 2.20f, 0.45f, 690f, 1550f, 105f, 0.050f, 6.8f, 0.045f, 34f, 0.0025f, 0.34f, 3.5f, true);
+                return new VoiceProfile(0.98f, 0.91f, 0.99f, 72f, 620f, 1380f, 0.12f, 1.48f, 0.46f, 2.3f, 1.25f);
             default:
-                return new VoiceProfile(1.12f, 0.095f, 1.06f, 1.10f, 0.075f, 2.75f, 0.72f, 780f, 1780f, 125f, 0.065f, 7.5f, 0.060f, 38f, 0.0030f, 0.30f, 4.5f, true);
+                return new VoiceProfile(1.00f, 0.96f, 1.01f, 78f, 700f, 1550f, 0.21f, 1.38f, 0.48f, 2.2f, 1.23f);
         }
     }
 
     private float selectedSpeed() {
         switch (speedSpinner.getSelectedItemPosition()) {
             case 0: return 0.96f;
-            case 2: return 1.08f;
-            case 3: return 1.14f;
+            case 2: return 1.04f;
+            case 3: return 1.08f;
             default: return 1.0f;
         }
-    }
-
-    private float randomRange(float minimum, float maximum) {
-        return minimum + random.nextFloat() * (maximum - minimum);
     }
 
     private float clamp(float value, float minimum, float maximum) {
@@ -648,63 +641,42 @@ public final class MainActivity extends Activity {
     }
 
     private static final class VoiceProfile {
-        final float pitch;
-        final float pitchSwing;
-        final float playbackSpeed;
         final float generationSpeed;
-        final float speedJitter;
-        final float drive;
-        final float nasalAmount;
+        final float pitch;
+        final float playbackSpeed;
+        final float highPassHz;
         final float nasalLowHz;
         final float nasalHighHz;
-        final float highPassHz;
-        final float flutterAmount;
-        final float flutterHz;
-        final float roughAmplitude;
-        final float roughHz;
-        final float breathNoise;
+        final float nasalAmount;
+        final float drive;
         final float compressionThreshold;
         final float compressionRatio;
-        final boolean microBreaks;
+        final float outputGain;
 
         VoiceProfile(
-                float pitch,
-                float pitchSwing,
-                float playbackSpeed,
                 float generationSpeed,
-                float speedJitter,
-                float drive,
-                float nasalAmount,
+                float pitch,
+                float playbackSpeed,
+                float highPassHz,
                 float nasalLowHz,
                 float nasalHighHz,
-                float highPassHz,
-                float flutterAmount,
-                float flutterHz,
-                float roughAmplitude,
-                float roughHz,
-                float breathNoise,
+                float nasalAmount,
+                float drive,
                 float compressionThreshold,
                 float compressionRatio,
-                boolean microBreaks
+                float outputGain
         ) {
-            this.pitch = pitch;
-            this.pitchSwing = pitchSwing;
-            this.playbackSpeed = playbackSpeed;
             this.generationSpeed = generationSpeed;
-            this.speedJitter = speedJitter;
-            this.drive = drive;
-            this.nasalAmount = nasalAmount;
+            this.pitch = pitch;
+            this.playbackSpeed = playbackSpeed;
+            this.highPassHz = highPassHz;
             this.nasalLowHz = nasalLowHz;
             this.nasalHighHz = nasalHighHz;
-            this.highPassHz = highPassHz;
-            this.flutterAmount = flutterAmount;
-            this.flutterHz = flutterHz;
-            this.roughAmplitude = roughAmplitude;
-            this.roughHz = roughHz;
-            this.breathNoise = breathNoise;
+            this.nasalAmount = nasalAmount;
+            this.drive = drive;
             this.compressionThreshold = compressionThreshold;
             this.compressionRatio = compressionRatio;
-            this.microBreaks = microBreaks;
+            this.outputGain = outputGain;
         }
     }
 }
