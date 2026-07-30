@@ -39,7 +39,6 @@ def main() -> None:
     alpha7 = pathlib.Path(__file__).with_name("prepare_alpha7.py")
     subprocess.run([sys.executable, str(alpha7), str(root)], check=True)
 
-    # New installable version while preserving the independent alpha7 package.
     gradle = root / "app/build.gradle.kts"
     text = read(gradle)
     text = re.sub(r"versionCode\s*=\s*7", "versionCode = 8", text, count=1)
@@ -51,8 +50,7 @@ def main() -> None:
     )
     write(gradle, text)
 
-    # Fewer inference threads reduce native memory pressure and thread stacks on
-    # mid-range phones. This is slower but substantially safer for cloning.
+    # Use fewer native threads to reduce thread stacks and peak RAM on A26.
     prefs = root / "app/src/main/java/com/nekospeak/tts/data/PrefsManager.kt"
     text = read(prefs)
     text = text.replace("prefs.getInt(KEY_THREADS, 6)", "prefs.getInt(KEY_THREADS, 2)")
@@ -61,9 +59,8 @@ def main() -> None:
     voices = root / "app/src/main/java/com/nekospeak/tts/ui/screens/VoicesScreen.kt"
     text = read(voices)
 
-    # Do not start the app's TTS service as soon as the voice list opens. That
-    # service loads the complete PocketTTS graph and was still resident when the
-    # clone-only encoder was created.
+    # Remove the persistent TextToSpeech instance that loaded the entire model
+    # immediately on entering the voice list.
     text = replace_required(
         text,
         '    var tts: TextToSpeech? by remember { mutableStateOf(null) }\n',
@@ -81,27 +78,6 @@ def main() -> None:
     if removed != 1:
         raise RuntimeError("No se pudo eliminar la inicialización persistente de TTS")
 
-    old_preview = '''                        onClick = {
-                             val voiceId = uiState.selectedVoiceId ?: prefs.currentVoice
-                             val params = android.os.Bundle()
-                             params.putString("voiceName", voiceId)
-                              
-                             // Graceful recovery: stop, and if isSpeaking was true after stop, recreate TTS
-                             val wasSpeaking = tts?.isSpeaking == true
-                             tts?.stop()
-                              
-                             // If TTS was stuck or in an error state, recreate it
-                             if (wasSpeaking) {
-                                 // Give a brief moment for stop to take effect
-                                 tts?.shutdown()
-                                 tts = TextToSpeech(context, { _ -> }, "cl.medina.flaiteclone")
-                             }
-                              
-                             // Set the speech rate from preferences
-                             tts?.setSpeechRate(prefs.speechSpeed)
-                              
-                             tts?.speak(testText, TextToSpeech.QUEUE_FLUSH, params, "test_id")
-                        },'''
     new_preview = '''                        onClick = {
                              val voiceId = uiState.selectedVoiceId ?: prefs.currentVoice
                              val params = android.os.Bundle().apply {
@@ -117,7 +93,6 @@ def main() -> None:
                                                  previewEngine?.shutdown()
                                                  previewEngine = null
                                              }
-                                             @Deprecated("Deprecated in Java")
                                              override fun onError(utteranceId: String?) {
                                                  previewEngine?.shutdown()
                                                  previewEngine = null
@@ -146,12 +121,20 @@ def main() -> None:
                                  }
                              }, context.packageName)
                         },'''
-    text = replace_required(text, old_preview, new_preview, 'reproducción bajo demanda')
+    preview_pattern = re.compile(
+        r'''                        onClick = \{\s*
+                             val voiceId = uiState\.selectedVoiceId \?: prefs\.currentVoice\s*
+                             val params = android\.os\.Bundle\(\)\s*
+                             params\.putString\("voiceName", voiceId\).*?
+                             tts\?\.speak\(testText, TextToSpeech\.QUEUE_FLUSH, params, "test_id"\)\s*
+                        \},''',
+        re.DOTALL,
+    )
+    text, preview_count = preview_pattern.subn(new_preview, text, count=1)
+    if preview_count != 1:
+        raise RuntimeError("No se pudo reemplazar la reproducción por carga bajo demanda")
     write(voices, text)
 
-    # Selecting an already active PocketTTS profile must not trigger a needless
-    # service reload. This also protects users who configured the app as Android's
-    # system TTS engine before installing alpha8.
     view_model = root / "app/src/main/java/com/nekospeak/tts/ui/viewmodel/VoicesViewModel.kt"
     text = read(view_model)
     text = replace_required(
@@ -162,7 +145,6 @@ def main() -> None:
         '            }\n',
         'evitar recarga redundante al seleccionar voz',
     )
-
     text = replace_required(
         text,
         '                // Initialize a lightweight clone-only engine to avoid OOM/native crashes\n'
