@@ -1,0 +1,75 @@
+name: Llamada Flaite Local Voice APK
+
+on:
+  push:
+    branches:
+      - agent/llamada-flaite-local-voice
+    paths:
+      - 'llamada-flaite-local-voice/**'
+      - '.github/workflows/llamada-flaite-local-voice.yml'
+  pull_request:
+    paths:
+      - 'llamada-flaite-local-voice/**'
+      - '.github/workflows/llamada-flaite-local-voice.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Download sherpa-onnx Android runtime
+        run: |
+          mkdir -p llamada-flaite-local-voice/app/libs
+          curl --fail --location --retry 3 \
+            --output llamada-flaite-local-voice/app/libs/sherpa-onnx-1.13.2.aar \
+            https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.2/sherpa-onnx-1.13.2.aar
+          ls -lh llamada-flaite-local-voice/app/libs
+
+      - name: Bundle Supertonic Spanish model
+        run: |
+          mkdir -p llamada-flaite-local-voice/app/src/main/assets
+          curl --fail --location --retry 3 \
+            --output /tmp/supertonic.tar.bz2 \
+            https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-supertonic-3-tts-int8-2026-05-11.tar.bz2
+          tar -xjf /tmp/supertonic.tar.bz2 -C llamada-flaite-local-voice/app/src/main/assets
+          find llamada-flaite-local-voice/app/src/main/assets -maxdepth 2 -type f -printf '%p %k KB\n'
+          du -sh llamada-flaite-local-voice/app/src/main/assets
+
+      - name: Build alpha6 fluent local voice APK
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon -p llamada-flaite-local-voice :app:assembleDebug --stacktrace 2>&1 | tee llamada-flaite-local-voice/build.log
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LlamadaFlaite-alpha6-fluent-build-log
+          path: llamada-flaite-local-voice/build.log
+          if-no-files-found: ignore
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LlamadaFlaite-alpha6-fluent-local-voice-apk
+          path: llamada-flaite-local-voice/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          compression-level: 0
