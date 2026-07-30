@@ -37,22 +37,24 @@ jobs:
           curl --fail --location --retry 4 \
             --output /tmp/nekospeak.tar.gz \
             "https://github.com/siva-sub/NekoSpeak/archive/${NEKO_COMMIT}.tar.gz"
-          mkdir -p /tmp/alpha7-src
-          tar -xzf /tmp/nekospeak.tar.gz -C /tmp/alpha7-src --strip-components=1
-          test -f /tmp/alpha7-src/app/build.gradle.kts
-          test -f /tmp/alpha7-src/LICENSE
+          mkdir -p /tmp/alpha8-src
+          tar -xzf /tmp/nekospeak.tar.gz -C /tmp/alpha8-src --strip-components=1
+          test -f /tmp/alpha8-src/app/build.gradle.kts
+          test -f /tmp/alpha8-src/LICENSE
 
-      - name: Apply Spanish authorized-cloning patch
+      - name: Apply Spanish authorized-cloning and A26 memory patch
         run: |
-          python3 llamada-flaite-clone-voice/prepare_alpha7.py /tmp/alpha7-src
-          grep -R "lookbe/pocket-tts-onnx/resolve/main/spanish" /tmp/alpha7-src/app/src/main/java/com/nekospeak/tts/data/ModelRepository.kt
-          grep -R "Confirmo que esta es mi voz" /tmp/alpha7-src/app/src/main/java/com/nekospeak/tts/ui/screens/VoiceRecorderScreen.kt
+          python3 llamada-flaite-clone-voice/prepare_alpha8.py /tmp/alpha8-src
+          grep -R "0.8.0-alpha8-a26-memory-fix" /tmp/alpha8-src/app/build.gradle.kts
+          grep -R "previewEngine = TextToSpeech" /tmp/alpha8-src/app/src/main/java/com/nekospeak/tts/ui/screens/VoicesScreen.kt
+          grep -R "PocketTtsEngine(context, cloneOnly = true)" /tmp/alpha8-src/app/src/main/java/com/nekospeak/tts/ui/viewmodel/VoicesViewModel.kt
+          ! grep -R "var tts: TextToSpeech" /tmp/alpha8-src/app/src/main/java/com/nekospeak/tts/ui/screens/VoicesScreen.kt
 
-      - name: Build alpha7 debug APK
+      - name: Build alpha8 debug APK
         shell: bash
         run: |
           set -o pipefail
-          cd /tmp/alpha7-src
+          cd /tmp/alpha8-src
           chmod +x gradlew
           ./gradlew --no-daemon :app:assembleDebug --stacktrace 2>&1 | tee "$GITHUB_WORKSPACE/llamada-flaite-clone-voice/build.log"
 
@@ -60,33 +62,33 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          find /tmp/alpha7-src/app/build/outputs/apk -type f -name '*.apk' -print
-          APK=$(find /tmp/alpha7-src/app/build/outputs/apk -type f -name '*arm64-v8a*debug*.apk' | head -n 1 || true)
+          find /tmp/alpha8-src/app/build/outputs/apk -type f -name '*.apk' -print
+          APK=$(find /tmp/alpha8-src/app/build/outputs/apk -type f -name '*arm64-v8a*debug*.apk' | head -n 1 || true)
           if [ -z "$APK" ]; then
-            APK=$(find /tmp/alpha7-src/app/build/outputs/apk -type f -name '*universal*debug*.apk' | head -n 1 || true)
+            APK=$(find /tmp/alpha8-src/app/build/outputs/apk -type f -name '*universal*debug*.apk' | head -n 1 || true)
           fi
           if [ -z "$APK" ]; then
-            APK=$(find /tmp/alpha7-src/app/build/outputs/apk -type f -name '*debug*.apk' | head -n 1 || true)
+            APK=$(find /tmp/alpha8-src/app/build/outputs/apk -type f -name '*debug*.apk' | head -n 1 || true)
           fi
           test -n "$APK"
-          cp "$APK" "$GITHUB_WORKSPACE/llamada-flaite-clone-voice/LlamadaFlaite-IA-alpha7-clona-voz.apk"
-          sha256sum "$GITHUB_WORKSPACE/llamada-flaite-clone-voice/LlamadaFlaite-IA-alpha7-clona-voz.apk" | tee "$GITHUB_WORKSPACE/llamada-flaite-clone-voice/SHA256.txt"
-          ls -lh "$GITHUB_WORKSPACE/llamada-flaite-clone-voice/LlamadaFlaite-IA-alpha7-clona-voz.apk"
+          cp "$APK" "$GITHUB_WORKSPACE/llamada-flaite-clone-voice/LlamadaFlaite-IA-alpha8-A26-fix.apk"
+          sha256sum "$GITHUB_WORKSPACE/llamada-flaite-clone-voice/LlamadaFlaite-IA-alpha8-A26-fix.apk" | tee "$GITHUB_WORKSPACE/llamada-flaite-clone-voice/SHA256.txt"
+          ls -lh "$GITHUB_WORKSPACE/llamada-flaite-clone-voice/LlamadaFlaite-IA-alpha8-A26-fix.apk"
 
       - name: Upload build diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: LlamadaFlaite-alpha7-clone-build-log
+          name: LlamadaFlaite-alpha8-A26-build-log
           path: llamada-flaite-clone-voice/build.log
           if-no-files-found: ignore
 
-      - name: Upload alpha7 APK
+      - name: Upload alpha8 APK
         uses: actions/upload-artifact@v4
         with:
-          name: LlamadaFlaite-alpha7-clona-voz-apk
+          name: LlamadaFlaite-alpha8-A26-fix-apk
           path: |
-            llamada-flaite-clone-voice/LlamadaFlaite-IA-alpha7-clona-voz.apk
+            llamada-flaite-clone-voice/LlamadaFlaite-IA-alpha8-A26-fix.apk
             llamada-flaite-clone-voice/SHA256.txt
           if-no-files-found: error
           compression-level: 0
