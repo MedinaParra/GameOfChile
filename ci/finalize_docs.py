@@ -7,8 +7,8 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT = ROOT / "project"
-DEBUG_APK = ROOT / "Tatis_Laberinto_Fauno_v1.0.1_Samsung_A26.apk"
-RELEASE_APK = ROOT / "Tatis_Laberinto_Fauno_v1.0.1_Samsung_A26_release.apk"
+DEBUG_APK = ROOT / "Tatis_Laberinto_Fauno_v1.0.2_Horizontal_Samsung_A26.apk"
+RELEASE_APK = ROOT / "Tatis_Laberinto_Fauno_v1.0.2_Horizontal_Samsung_A26_release.apk"
 
 
 def digest(path: Path) -> str:
@@ -39,7 +39,7 @@ def apk_checks(path: Path) -> list[str]:
 
 
 stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-report = f"""# Reporte de pruebas — Tatis y el Laberinto del Fauno v1.0.1 Samsung A26
+report = f"""# Reporte de pruebas — Tatis y el Laberinto del Fauno v1.0.2 Horizontal
 
 Compilación verificada: **{stamp}**.
 
@@ -49,10 +49,19 @@ Compilación verificada: **{stamp}**.
 - Java: **OpenJDK 17**.
 - Android SDK Platform: **35**.
 - Android Build Tools: **35.0.1**.
-- Paquete de prueba paralelo: `com.tatis.laberintodelfauno.safe`.
+- Paquete paralelo: `com.tatis.laberintodelfauno.landscape`.
 - Arquitecturas: **ARM64-v8a y armeabi-v7a**.
+- Resolución lógica: **1280 × 720**.
+- Orientación móvil: **horizontal fija (`SCREEN_LANDSCAPE`)**.
 
-## Correcciones de estabilidad móvil
+## Cambios solicitados
+- `display/window/handheld/orientation` corregido de `1` (vertical) a `0` (horizontal).
+- Bloqueo reforzado en Android mediante `DisplayServer.screen_set_orientation(DisplayServer.SCREEN_LANDSCAPE)`.
+- Nueva animación 2D ligera en el menú principal.
+- La animación muestra a Tatis caminando dentro de un minilaberinto, granos de maíz flotantes, luciérnagas y una silueta del fauno.
+- La animación usa primitivas de `CanvasItem`; no carga el mundo 3D, texturas ni partículas GPU.
+
+## Correcciones de estabilidad móvil conservadas
 - Eliminados los 50 sistemas `GPUParticles3D` de los granos.
 - Sombras direccionales desactivadas.
 - Luces dinámicas del pantano sustituidas por mallas emisivas.
@@ -65,9 +74,12 @@ Compilación verificada: **{stamp}**.
 
 ## Resultados automáticos
 - Reconstrucción del proyecto editable: **OK**.
+- Verificación de orientación horizontal en `project.godot`: **OK**.
+- Verificación del bloqueo de orientación en tiempo de ejecución: **OK**.
+- Presencia e instanciación de `MenuAnimationPreview`: **OK**.
 - Importación completa de recursos: **OK**.
 - Análisis de todos los scripts GDScript por Godot: **OK**.
-- Prueba de arranque del menú: **OK**.
+- Prueba de arranque del menú animado: **OK**.
 - Prueba funcional que entra a Nueva partida y construye los cinco sectores: **OK**.
 - Mundo, jugador, daño, guardado, punto de control y puerta final: **OK**.
 - Recolectables creados durante ejecución: **50 exactos**.
@@ -88,24 +100,22 @@ Compilación verificada: **{stamp}**.
 
 ## Limitaciones reales
 - La ejecución funcional fue validada en Godot headless, no directamente en el Samsung A26 físico del usuario.
-- El modo seguro reduce efectos visuales y desactiva la música ambiental en Android para aislar fallos de GPU/audio.
-- El paquete `.safe` se instala junto a la versión anterior y empieza con un guardado independiente.
+- La rotación horizontal física debe confirmarse instalando la APK en el teléfono.
+- El paquete `.landscape` se instala junto a las versiones anteriores y empieza con un guardado independiente.
 - La APK release está firmada con una clave de prueba generada para esta compilación; no es una clave definitiva de Google Play.
 """
 (PROJECT / "REPORTE_PRUEBAS.md").write_text(report, encoding="utf-8")
 
-errors = """# Errores encontrados y corregidos — v1.0.1 Samsung A26
+errors = """# Errores encontrados y corregidos — v1.0.2 Horizontal
 
-1. **Cierre físico después de 1–2 segundos:** se sustituyó OpenGL Compatibility como ruta principal por Mobile con fallback automático.
-2. **Carga de partículas:** se eliminaron 50 sistemas GPU simultáneos asociados a los granos.
-3. **Presión de luces y sombras:** se desactivaron sombras y se redujeron luces dinámicas.
-4. **Duplicación de recursos:** materiales y mallas modulares ahora se reutilizan mediante caché.
-5. **Picos de geometría:** se redujeron segmentos de esferas y cantidad de árboles.
-6. **Audio móvil:** se desactivó el bucle musical procedural en Android y se cachean los efectos cortos.
-7. **Estabilidad de física:** el cambio de `Area3D.monitoring` de las raíces usa ejecución diferida.
-8. **Frame pacing:** se activó el control de ritmo de fotogramas y se fijó un máximo de 30 FPS en Android.
-9. **Validación incompleta anterior:** ahora la prueba automática entra realmente a Nueva partida, construye el mundo y verifica 50 granos, daño, guardado, checkpoint y puerta.
-10. **Exportación ARM:** se eliminó la arquitectura x86_64 no necesaria para el Samsung A26 y se mantuvieron ARM64/ARMv7.
+1. **Orientación incorrecta:** el proyecto tenía `handheld/orientation=1`, valor correspondiente a vertical; se cambió a `0`, horizontal fija.
+2. **Rotación no reforzada:** Android ahora recibe además `DisplayServer.SCREEN_LANDSCAPE` durante el arranque.
+3. **Menú estático:** se agregó una escena animada ligera con Tatis, maíz, minilaberinto, luciérnagas y el fauno.
+4. **Riesgo de aumentar la carga:** la animación se implementó en Canvas 2D, sin cargar el escenario 3D ni usar partículas GPU.
+5. **Cierre físico anterior:** se conserva Mobile con fallback automático, reducción de luces, sombras, partículas, geometría y límite de 30 FPS.
+6. **Estabilidad de física:** el cambio de `Area3D.monitoring` de las raíces continúa usando ejecución diferida.
+7. **Validación:** la prueba automática ahora comprueba orientación horizontal, nodo animado, cinco sectores, 50 granos, daño, guardado, checkpoint y puerta final.
+8. **Instalación paralela:** se usa `com.tatis.laberintodelfauno.landscape` para evitar conflictos de firma con las APK de diagnóstico anteriores.
 
 No quedaron errores críticos de análisis, ejecución funcional o exportación en esta compilación.
 """
@@ -113,14 +123,15 @@ No quedaron errores críticos de análisis, ejecución funcional o exportación 
 
 readme_path = PROJECT / "README.md"
 readme = readme_path.read_text(encoding="utf-8")
-readme = readme.replace("v1.0.0", "v1.0.1 Samsung A26")
-readme = readme.replace("com.tatis.laberintodelfauno", "com.tatis.laberintodelfauno.safe")
+readme = readme.replace("v1.0.0", "v1.0.2 Horizontal")
+readme = readme.replace("com.tatis.laberintodelfauno.safe", "com.tatis.laberintodelfauno.landscape")
+readme = readme.replace("com.tatis.laberintodelfauno", "com.tatis.laberintodelfauno.landscape")
 readme += """
 
-## Modo seguro Samsung A26
-Esta variante usa el renderizador Mobile con fallback automático, limita Android a 30 FPS, elimina partículas GPU y sombras, reduce luces y reutiliza mallas/materiales. Se instala como una aplicación paralela con paquete `com.tatis.laberintodelfauno.safe`, por lo que no es necesario desinstalar la primera APK para probarla.
+## Versión horizontal con menú animado
+Esta variante bloquea Android en orientación horizontal fija y refuerza el ajuste durante el arranque. El menú principal incluye una animación 2D ligera de Tatis recorriendo un minilaberinto con maíz, luciérnagas y una silueta del fauno. La animación no carga el mundo 3D completo y mantiene las optimizaciones del modo seguro para Samsung A26.
 
-La música ambiental procedural queda desactivada en Android en esta compilación de diagnóstico; los efectos cortos permanecen activos.
+Se instala como una aplicación paralela con paquete `com.tatis.laberintodelfauno.landscape`.
 """
 readme_path.write_text(readme, encoding="utf-8")
-print("Final Samsung A26 documentation generated from verified APK artifacts")
+print("Final v1.0.2 landscape documentation generated from verified APK artifacts")
