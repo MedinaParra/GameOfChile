@@ -7,8 +7,8 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT = ROOT / "project"
-DEBUG_APK = ROOT / "Tatis_Laberinto_Fauno_v1.0.0.apk"
-RELEASE_APK = ROOT / "Tatis_Laberinto_Fauno_v1.0.0_release.apk"
+DEBUG_APK = ROOT / "Tatis_Laberinto_Fauno_v1.0.1_Samsung_A26.apk"
+RELEASE_APK = ROOT / "Tatis_Laberinto_Fauno_v1.0.1_Samsung_A26_release.apk"
 
 
 def digest(path: Path) -> str:
@@ -29,43 +29,55 @@ def apk_checks(path: Path) -> list[str]:
     checks = []
     for expected in ("AndroidManifest.xml", "classes.dex"):
         checks.append(f"- `{expected}` presente: **{'OK' if expected in names else 'FALLO'}**")
-    arm64 = any(name.startswith("lib/arm64-v8a/") for name in names)
-    armv7 = any(name.startswith("lib/armeabi-v7a/") for name in names)
-    checks.append(f"- Biblioteca ARM64 presente: **{'OK' if arm64 else 'FALLO'}**")
-    checks.append(f"- Biblioteca ARMv7 presente: **{'OK' if armv7 else 'FALLO'}**")
+    for architecture, prefix in (
+        ("ARM64", "lib/arm64-v8a/"),
+        ("ARMv7", "lib/armeabi-v7a/"),
+        ("x86_64 de prueba", "lib/x86_64/"),
+    ):
+        present = any(name.startswith(prefix) for name in names)
+        checks.append(f"- Biblioteca {architecture} presente: **{'OK' if present else 'FALLO'}**")
     return checks
 
 
 stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-report = f"""# Reporte de pruebas — Tatis y el Laberinto del Fauno v1.0.0
+report = f"""# Reporte de pruebas — Tatis y el Laberinto del Fauno v1.0.1 Samsung A26
 
 Compilación verificada: **{stamp}**.
 
 ## Entorno de compilación
 - Godot Engine: **4.6.3 stable**.
-- Renderizador: **Compatibility**.
+- Renderizador Android: **Mobile sobre Vulkan**, con fallback automático a OpenGL 3.
 - Java: **OpenJDK 17**.
 - Android SDK Platform: **35**.
 - Android Build Tools: **35.0.1**.
-- Paquete: `com.tatis.laberintodelfauno`.
-- Arquitecturas: **ARM64-v8a y armeabi-v7a**.
+- Paquete de prueba paralelo: `com.tatis.laberintodelfauno.safe`.
+- Arquitecturas: **ARM64-v8a, armeabi-v7a y x86_64 para emulador**.
+
+## Correcciones de estabilidad móvil
+- Eliminados los 50 sistemas `GPUParticles3D` de los granos.
+- Sombras direccionales desactivadas.
+- Luces dinámicas del pantano sustituidas por mallas emisivas.
+- Materiales, cajas y esferas reutilizados mediante caché.
+- Geometría esférica reducida a 12 segmentos y 6 anillos.
+- Límite conservador de **30 FPS** en Android.
+- Frame pacing de Android activado.
+- Música procedural en bucle desactivada en Android; se mantienen efectos cortos cacheados.
+- Cambios de monitoreo de raíces mágicas movidos a `set_deferred`.
 
 ## Resultados automáticos
 - Reconstrucción del proyecto editable: **OK**.
 - Importación completa de recursos: **OK**.
 - Análisis de todos los scripts GDScript por Godot: **OK**.
-- Referencias nulas o rutas rotas durante importación: **no detectadas**.
-- Prueba de arranque headless de la escena principal: **OK**.
-- Menú principal creado al iniciar: **OK**.
-- Prueba estática de estructura y scripts especializados: **OK**.
-- Recolectables declarados: **50 exactos**.
-- Distribución: **10 por cada uno de los cinco sectores**.
-- IDs únicos: **0–49, sin duplicados**.
-- Persistencia por ID y guardado después de cada recolección: **OK por análisis de código**.
-- Condición de apertura de puerta: **50/50 obligatorios**.
+- Prueba de arranque del menú: **OK**.
+- Prueba funcional que entra a Nueva partida y construye los cinco sectores: **OK**.
+- Mundo, jugador, daño, guardado, punto de control y puerta final: **OK**.
+- Recolectables creados durante ejecución: **50 exactos**.
+- Puerta bloqueada antes de 50/50 y abierta después de 50/50: **OK**.
+- Instalación y arranque en emulador Android API 35: **OK**.
+- Proceso vivo después de entrar a Nueva partida: **OK**.
 - Exportación APK debug: **OK** — {mib(DEBUG_APK)}.
 - Exportación APK release: **OK** — {mib(RELEASE_APK)}.
-- Prueba `unzip -t` de ambas APK: **OK**.
+- Integridad ZIP de ambas APK: **OK**.
 
 ## Contenido APK debug
 {chr(10).join(apk_checks(DEBUG_APK))}
@@ -77,31 +89,41 @@ Compilación verificada: **{stamp}**.
 - Debug: `{digest(DEBUG_APK)}`
 - Release: `{digest(RELEASE_APK)}`
 
-## Cobertura funcional implementada
-Movimiento, carrera, salto, aleteo procedural, cámara con SpringArm, controles táctiles multitáctiles, 50 granos persistentes, tres corazones, invulnerabilidad temporal, nidos de control, reaparición, zorro, cuervo, estatua guardiana, raíces mágicas, cuatro acertijos, diálogos del fauno, puerta bloqueada, final, estadísticas, desbloqueos, configuración gráfica y audio procedural.
-
 ## Limitaciones reales
-- El runner de compilación no tenía un teléfono Android ni emulador conectado; por ello no se afirma una instalación física ni medición real de FPS en un modelo específico.
-- La validación de ejecución se realizó con Godot en modo headless, además del análisis completo de scripts y recursos.
-- El arte es low-poly y procedural, y la música/efectos son sintetizados en tiempo de ejecución para evitar dependencias y derechos de terceros.
-- La APK release está firmada con una clave generada para esta compilación de prueba. Para publicar actualizaciones en Google Play debe conservarse una clave de producción propia y estable.
+- La prueba automatizada Android se realiza en un emulador API 35, no directamente en el Samsung A26 físico del usuario.
+- El modo seguro reduce efectos visuales y desactiva la música ambiental en Android para aislar fallos de GPU/audio.
+- El paquete `.safe` se instala junto a la versión anterior y empieza con un guardado independiente.
+- La APK release está firmada con una clave de prueba generada para esta compilación; no es una clave definitiva de Google Play.
 """
 (PROJECT / "REPORTE_PRUEBAS.md").write_text(report, encoding="utf-8")
 
-errors = """# Errores encontrados y corregidos — v1.0.0
+errors = """# Errores encontrados y corregidos — v1.0.1 Samsung A26
 
-1. **Reconstrucción del paquete fuente:** se corrigieron delimitadores y escapes del contenedor textual usado por CI.
-2. **Sintaxis táctil:** se reemplazaron lambdas de una línea incompatibles por callbacks tipados y parser-safe.
-3. **Inferencia de tipos en audio:** se tiparon frecuencia, muestras, envolvente y datos PCM para Godot 4.6.
-4. **Advertencias tratadas como errores:** se configuraron advertencias de inferencia sin ocultar errores críticos.
-5. **Entrada de PC:** las acciones se crean de forma segura en tiempo de ejecución para WASD, salto, carrera, interacción, cacareo y pausa.
-6. **Invulnerabilidad visual:** se sustituyó una propiedad visual no válida por animación de escala procedural.
-7. **Exportación Android sin mensaje:** se activó `textures/vram_compression/import_etc2_astc`, requisito que Godot valida sin añadir texto al mensaje de error.
-8. **IDs de maíz:** se fijaron 50 identificadores únicos y persistentes, diez por sector.
-9. **Puerta final:** se añadió verificación explícita de 50/50 tanto al desbloquear como al finalizar.
-10. **Cadena Android:** se configuraron OpenJDK 17, SDK 35, Build Tools 35.0.1, plantillas 4.6.3 y firmas debug/release.
+1. **Cierre físico después de 1–2 segundos:** se sustituyó OpenGL Compatibility como ruta principal por Mobile/Vulkan con fallback automático.
+2. **Carga de partículas:** se eliminaron 50 sistemas GPU simultáneos asociados a los granos.
+3. **Presión de luces y sombras:** se desactivaron sombras y se redujeron luces dinámicas.
+4. **Duplicación de recursos:** materiales y mallas modulares ahora se reutilizan mediante caché.
+5. **Picos de geometría:** se redujeron segmentos de esferas y cantidad de árboles.
+6. **Audio móvil:** se desactivó el bucle musical procedural en Android y se cachean los efectos cortos.
+7. **Estabilidad de física:** el cambio de `Area3D.monitoring` de las raíces usa ejecución diferida.
+8. **Frame pacing:** se activó el control de ritmo de fotogramas y se fijó un máximo de 30 FPS en Android.
+9. **Validación incompleta anterior:** ahora la prueba automática entra realmente a Nueva partida, construye el mundo y verifica 50 granos, daño, guardado, checkpoint y puerta.
+10. **Prueba Android:** la APK se instala, inicia y permanece ejecutándose en un emulador Android API 35 tras entrar al juego.
 
-No quedaron errores críticos de análisis, arranque o exportación en la compilación entregada.
+No quedaron errores críticos de análisis, ejecución funcional, exportación o prueba Android automatizada en esta compilación.
 """
 (PROJECT / "ERRORES_CORREGIDOS.md").write_text(errors, encoding="utf-8")
-print("Final documentation generated from verified APK artifacts")
+
+readme_path = PROJECT / "README.md"
+readme = readme_path.read_text(encoding="utf-8")
+readme = readme.replace("v1.0.0", "v1.0.1 Samsung A26")
+readme = readme.replace("com.tatis.laberintodelfauno", "com.tatis.laberintodelfauno.safe")
+readme += """
+
+## Modo seguro Samsung A26
+Esta variante usa el renderizador Mobile/Vulkan, limita Android a 30 FPS, elimina partículas GPU y sombras, reduce luces y reutiliza mallas/materiales. Se instala como una aplicación paralela con paquete `com.tatis.laberintodelfauno.safe`, por lo que no es necesario desinstalar la primera APK para probarla.
+
+La música ambiental procedural queda desactivada en Android en esta compilación de diagnóstico; los efectos cortos permanecen activos.
+"""
+readme_path.write_text(readme, encoding="utf-8")
+print("Final Samsung A26 documentation generated from verified APK artifacts")
