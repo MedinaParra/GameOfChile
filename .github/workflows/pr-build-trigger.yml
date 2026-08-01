@@ -22,8 +22,8 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
-      - name: Reconstruct and patch Samsung A26 build
-        run: python3 ci/build_tatis.py && python3 ci/fix_touch.py && python3 ci/fix_android_project.py && python3 ci/fix_arm_export.py
+      - name: Reconstruct and patch landscape Android build
+        run: python3 ci/build_tatis.py && python3 ci/fix_touch.py && python3 ci/fix_android_project.py && python3 ci/fix_arm_export.py && python3 ci/fix_landscape_menu_v2.py
 
       - name: Install Android SDK 35
         run: |
@@ -51,13 +51,21 @@ jobs:
           python3 ci/fix_touch.py
           python3 ci/fix_android_project.py
           python3 ci/fix_arm_export.py
+          python3 ci/fix_landscape_menu_v2.py
+
+      - name: Verify landscape and menu configuration
+        run: |
+          grep -q '^handheld/orientation=0$' project/project.godot
+          grep -q 'DisplayServer.SCREEN_LANDSCAPE' project/scripts/GameManager.gd
+          grep -q 'MenuAnimationPreview' project/scripts/GameManager.gd
+          test -s project/scripts/MenuAnimation.gd
 
       - name: Import and parse all GDScript
         run: |
           ./Godot_v4.6.3-stable_linux.x86_64 --headless --path project --editor --quit --verbose 2>&1 | tee godot-import.log
           ! grep -E "SCRIPT ERROR|Parse Error|ERROR: Failed to load script" godot-import.log
 
-      - name: Menu runtime smoke test
+      - name: Animated menu runtime smoke test
         run: |
           ./Godot_v4.6.3-stable_linux.x86_64 --headless --path project --quit-after 180 2>&1 | tee godot-runtime.log
           ! grep -E "SCRIPT ERROR|Parse Error|Invalid access|Invalid assignment|ERROR: Failed to load" godot-runtime.log
@@ -65,29 +73,29 @@ jobs:
       - name: Full world gameplay smoke test
         run: |
           ./Godot_v4.6.3-stable_linux.x86_64 --headless --path project --script res://tests/RuntimeWorldSmoke.gd 2>&1 | tee godot-world-smoke.log
-          grep -q "WORLD SMOKE: OK" godot-world-smoke.log
+          grep -q "WORLD SMOKE: OK - landscape locked, animated menu" godot-world-smoke.log
           ! grep -E "SCRIPT ERROR|Parse Error|Invalid access|Invalid assignment|WORLD SMOKE FAILED" godot-world-smoke.log
 
-      - name: Export Samsung A26 debug APK
+      - name: Export landscape Samsung A26 debug APK
         env:
           GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ github.workspace }}/.debug.keystore
           GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
           GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
         run: |
           cp "$HOME/.android/debug.keystore" "$GITHUB_WORKSPACE/.debug.keystore"
-          ./Godot_v4.6.3-stable_linux.x86_64 --headless --path project --export-debug "Android" "$GITHUB_WORKSPACE/Tatis_Laberinto_Fauno_v1.0.1_Samsung_A26.apk" 2>&1 | tee godot-export-debug.log
-          test -s Tatis_Laberinto_Fauno_v1.0.1_Samsung_A26.apk
-          unzip -t Tatis_Laberinto_Fauno_v1.0.1_Samsung_A26.apk
+          ./Godot_v4.6.3-stable_linux.x86_64 --headless --path project --export-debug "Android" "$GITHUB_WORKSPACE/Tatis_Laberinto_Fauno_v1.0.2_Horizontal_Samsung_A26.apk" 2>&1 | tee godot-export-debug.log
+          test -s Tatis_Laberinto_Fauno_v1.0.2_Horizontal_Samsung_A26.apk
+          unzip -t Tatis_Laberinto_Fauno_v1.0.2_Horizontal_Samsung_A26.apk
 
-      - name: Export Samsung A26 release APK
+      - name: Export landscape Samsung A26 release APK
         env:
           GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ github.workspace }}/tatis-release.keystore
           GODOT_ANDROID_KEYSTORE_RELEASE_USER: tatis
           GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: TatisBuild2026
         run: |
-          ./Godot_v4.6.3-stable_linux.x86_64 --headless --path project --export-release "Android" "$GITHUB_WORKSPACE/Tatis_Laberinto_Fauno_v1.0.1_Samsung_A26_release.apk" 2>&1 | tee godot-export-release.log
-          test -s Tatis_Laberinto_Fauno_v1.0.1_Samsung_A26_release.apk
-          unzip -t Tatis_Laberinto_Fauno_v1.0.1_Samsung_A26_release.apk
+          ./Godot_v4.6.3-stable_linux.x86_64 --headless --path project --export-release "Android" "$GITHUB_WORKSPACE/Tatis_Laberinto_Fauno_v1.0.2_Horizontal_Samsung_A26_release.apk" 2>&1 | tee godot-export-release.log
+          test -s Tatis_Laberinto_Fauno_v1.0.2_Horizontal_Samsung_A26_release.apk
+          unzip -t Tatis_Laberinto_Fauno_v1.0.2_Horizontal_Samsung_A26_release.apk
 
       - name: Validate and package deliverables
         run: |
@@ -97,20 +105,20 @@ jobs:
           cp project/README.md project/CHANGELOG.md project/LICENSES.md project/REPORTE_PRUEBAS.md project/ERRORES_CORREGIDOS.md .
           rm -rf project/.godot
           cd project
-          zip -qr ../Tatis_Laberinto_Fauno_v1.0.1_Proyecto_Godot.zip .
+          zip -qr ../Tatis_Laberinto_Fauno_v1.0.2_Proyecto_Godot.zip .
           cd ..
-          ls -lh *.apk Tatis_Laberinto_Fauno_v1.0.1_Proyecto_Godot.zip
+          ls -lh *.apk Tatis_Laberinto_Fauno_v1.0.2_Proyecto_Godot.zip
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Tatis-Laberinto-Fauno-v1.0.1-Samsung-A26
+          name: Tatis-Laberinto-Fauno-v1.0.2-Horizontal-Samsung-A26
           retention-days: 30
           if-no-files-found: warn
           path: |
-            Tatis_Laberinto_Fauno_v1.0.1_Samsung_A26.apk
-            Tatis_Laberinto_Fauno_v1.0.1_Samsung_A26_release.apk
-            Tatis_Laberinto_Fauno_v1.0.1_Proyecto_Godot.zip
+            Tatis_Laberinto_Fauno_v1.0.2_Horizontal_Samsung_A26.apk
+            Tatis_Laberinto_Fauno_v1.0.2_Horizontal_Samsung_A26_release.apk
+            Tatis_Laberinto_Fauno_v1.0.2_Proyecto_Godot.zip
             README.md
             CHANGELOG.md
             LICENSES.md
