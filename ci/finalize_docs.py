@@ -32,7 +32,6 @@ def apk_checks(path: Path) -> list[str]:
     for architecture, prefix in (
         ("ARM64", "lib/arm64-v8a/"),
         ("ARMv7", "lib/armeabi-v7a/"),
-        ("x86_64 de prueba", "lib/x86_64/"),
     ):
         present = any(name.startswith(prefix) for name in names)
         checks.append(f"- Biblioteca {architecture} presente: **{'OK' if present else 'FALLO'}**")
@@ -46,19 +45,19 @@ Compilación verificada: **{stamp}**.
 
 ## Entorno de compilación
 - Godot Engine: **4.6.3 stable**.
-- Renderizador Android: **Mobile sobre Vulkan**, con fallback automático a OpenGL 3.
+- Renderizador Android: **Mobile**, con fallback automático a OpenGL 3.
 - Java: **OpenJDK 17**.
 - Android SDK Platform: **35**.
 - Android Build Tools: **35.0.1**.
 - Paquete de prueba paralelo: `com.tatis.laberintodelfauno.safe`.
-- Arquitecturas: **ARM64-v8a, armeabi-v7a y x86_64 para emulador**.
+- Arquitecturas: **ARM64-v8a y armeabi-v7a**.
 
 ## Correcciones de estabilidad móvil
 - Eliminados los 50 sistemas `GPUParticles3D` de los granos.
 - Sombras direccionales desactivadas.
 - Luces dinámicas del pantano sustituidas por mallas emisivas.
 - Materiales, cajas y esferas reutilizados mediante caché.
-- Geometría esférica reducida a 12 segmentos y 6 anillos.
+- Geometría esférica reducida.
 - Límite conservador de **30 FPS** en Android.
 - Frame pacing de Android activado.
 - Música procedural en bucle desactivada en Android; se mantienen efectos cortos cacheados.
@@ -73,8 +72,6 @@ Compilación verificada: **{stamp}**.
 - Mundo, jugador, daño, guardado, punto de control y puerta final: **OK**.
 - Recolectables creados durante ejecución: **50 exactos**.
 - Puerta bloqueada antes de 50/50 y abierta después de 50/50: **OK**.
-- Instalación y arranque en emulador Android API 35: **OK**.
-- Proceso vivo después de entrar a Nueva partida: **OK**.
 - Exportación APK debug: **OK** — {mib(DEBUG_APK)}.
 - Exportación APK release: **OK** — {mib(RELEASE_APK)}.
 - Integridad ZIP de ambas APK: **OK**.
@@ -90,7 +87,7 @@ Compilación verificada: **{stamp}**.
 - Release: `{digest(RELEASE_APK)}`
 
 ## Limitaciones reales
-- La prueba automatizada Android se realiza en un emulador API 35, no directamente en el Samsung A26 físico del usuario.
+- La ejecución funcional fue validada en Godot headless, no directamente en el Samsung A26 físico del usuario.
 - El modo seguro reduce efectos visuales y desactiva la música ambiental en Android para aislar fallos de GPU/audio.
 - El paquete `.safe` se instala junto a la versión anterior y empieza con un guardado independiente.
 - La APK release está firmada con una clave de prueba generada para esta compilación; no es una clave definitiva de Google Play.
@@ -99,7 +96,7 @@ Compilación verificada: **{stamp}**.
 
 errors = """# Errores encontrados y corregidos — v1.0.1 Samsung A26
 
-1. **Cierre físico después de 1–2 segundos:** se sustituyó OpenGL Compatibility como ruta principal por Mobile/Vulkan con fallback automático.
+1. **Cierre físico después de 1–2 segundos:** se sustituyó OpenGL Compatibility como ruta principal por Mobile con fallback automático.
 2. **Carga de partículas:** se eliminaron 50 sistemas GPU simultáneos asociados a los granos.
 3. **Presión de luces y sombras:** se desactivaron sombras y se redujeron luces dinámicas.
 4. **Duplicación de recursos:** materiales y mallas modulares ahora se reutilizan mediante caché.
@@ -108,9 +105,9 @@ errors = """# Errores encontrados y corregidos — v1.0.1 Samsung A26
 7. **Estabilidad de física:** el cambio de `Area3D.monitoring` de las raíces usa ejecución diferida.
 8. **Frame pacing:** se activó el control de ritmo de fotogramas y se fijó un máximo de 30 FPS en Android.
 9. **Validación incompleta anterior:** ahora la prueba automática entra realmente a Nueva partida, construye el mundo y verifica 50 granos, daño, guardado, checkpoint y puerta.
-10. **Prueba Android:** la APK se instala, inicia y permanece ejecutándose en un emulador Android API 35 tras entrar al juego.
+10. **Exportación ARM:** se eliminó la arquitectura x86_64 no necesaria para el Samsung A26 y se mantuvieron ARM64/ARMv7.
 
-No quedaron errores críticos de análisis, ejecución funcional, exportación o prueba Android automatizada en esta compilación.
+No quedaron errores críticos de análisis, ejecución funcional o exportación en esta compilación.
 """
 (PROJECT / "ERRORES_CORREGIDOS.md").write_text(errors, encoding="utf-8")
 
@@ -121,7 +118,7 @@ readme = readme.replace("com.tatis.laberintodelfauno", "com.tatis.laberintodelfa
 readme += """
 
 ## Modo seguro Samsung A26
-Esta variante usa el renderizador Mobile/Vulkan, limita Android a 30 FPS, elimina partículas GPU y sombras, reduce luces y reutiliza mallas/materiales. Se instala como una aplicación paralela con paquete `com.tatis.laberintodelfauno.safe`, por lo que no es necesario desinstalar la primera APK para probarla.
+Esta variante usa el renderizador Mobile con fallback automático, limita Android a 30 FPS, elimina partículas GPU y sombras, reduce luces y reutiliza mallas/materiales. Se instala como una aplicación paralela con paquete `com.tatis.laberintodelfauno.safe`, por lo que no es necesario desinstalar la primera APK para probarla.
 
 La música ambiental procedural queda desactivada en Android en esta compilación de diagnóstico; los efectos cortos permanecen activos.
 """
