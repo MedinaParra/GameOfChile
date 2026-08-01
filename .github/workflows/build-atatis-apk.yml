@@ -3,6 +3,8 @@ name: Build A-tatis APK
 on:
   push:
     branches: [ "atatis-openworld-3d" ]
+  pull_request:
+    branches: [ "master" ]
   workflow_dispatch:
 
 jobs:
