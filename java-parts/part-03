@@ -1,0 +1,147 @@
+        drawSphere(x+0.62f*s,3.13f*s,z-0.18f*s,0.82f*s,1.05f*s,0.82f*s,rot,0.12f,0.42f,0.14f);
+    }
+
+    private void drawRock(float x,float z,float s,float rot){
+        drawSphere(x,0.38f*s,z,0.70f*s,0.42f*s,0.58f*s,rot,0.39f,0.42f,0.40f);
+        drawSphere(x+0.35f*s,0.22f*s,z+0.20f*s,0.36f*s,0.25f*s,0.32f*s,rot,0.48f,0.50f,0.47f);
+    }
+
+    private void drawApple(float x,float y,float z,int i){
+        float spin=elapsed*45f+i*19f;
+        drawSphere(x,y,z,0.34f,0.34f,0.34f,spin,0.88f,0.08f,0.06f);
+        drawCube(x,y+0.39f,z,0.045f,0.13f,0.045f,spin,0.31f,0.17f,0.06f);
+        drawSphere(x+0.12f,y+0.47f,z,0.15f,0.045f,0.09f,spin+35f,0.18f,0.60f,0.20f);
+    }
+
+    private void drawFlowers(){
+        for(int i=0;i<28;i++){
+            float x=(float)Math.sin(i*7.13f)*34f;
+            float z=(float)Math.cos(i*4.71f)*31f;
+            float r=(i%3==0)?0.95f:((i%3==1)?0.98f:0.78f);
+            float g=(i%3==0)?0.48f:((i%3==1)?0.82f:0.40f);
+            float b=(i%3==0)?0.72f:((i%3==1)?0.20f:0.95f);
+            drawCube(x,0.17f,z,0.025f,0.17f,0.025f,0,0.16f,0.48f,0.12f);
+            drawSphere(x,0.39f,z,0.10f,0.06f,0.10f,i*21f,r,g,b);
+        }
+    }
+
+    private void drawCapybara(){
+        float bob=(Math.abs(moveX)+Math.abs(moveY)>0.1f)?0.06f*(float)Math.sin(walkPhase*2f):0;
+        float legSwing=0.25f*(float)Math.sin(walkPhase);
+        // soft shadow
+        drawSphere(playerX,0.06f,playerZ,1.55f,0.05f,0.82f,playerYaw,0.12f,0.20f,0.10f);
+
+        pushModel(playerX,0.95f+bob,playerZ,playerYaw,1f,1f,1f);
+        // body and rump
+        childSphere(0,0,0,1.55f,0.82f,0.72f,0,0.50f,0.30f,0.16f);
+        childSphere(0,0.10f,-0.75f,1.0f,0.77f,0.65f,0,0.48f,0.28f,0.15f);
+        // neck/head face toward local +Z
+        childSphere(0,0.28f,1.18f,0.74f,0.67f,0.82f,0,0.56f,0.34f,0.19f);
+        childSphere(0,0.15f,1.75f,0.57f,0.47f,0.47f,0,0.62f,0.39f,0.22f);
+        childSphere(0,0.04f,2.10f,0.43f,0.33f,0.28f,0,0.67f,0.42f,0.25f);
+        // ears
+        childSphere(-0.45f,0.78f,1.38f,0.20f,0.25f,0.12f,-14,0.38f,0.20f,0.12f);
+        childSphere(0.45f,0.78f,1.38f,0.20f,0.25f,0.12f,14,0.38f,0.20f,0.12f);
+        // eyes, nose, teeth
+        childSphere(-0.31f,0.45f,1.90f,0.085f,0.10f,0.07f,0,0.03f,0.025f,0.02f);
+        childSphere(0.31f,0.45f,1.90f,0.085f,0.10f,0.07f,0,0.03f,0.025f,0.02f);
+        childSphere(0,0.10f,2.34f,0.18f,0.12f,0.08f,0,0.16f,0.08f,0.05f);
+        childCube(-0.11f,-0.15f,2.29f,0.08f,0.13f,0.035f,0,0.92f,0.87f,0.70f);
+        childCube(0.11f,-0.15f,2.29f,0.08f,0.13f,0.035f,0,0.92f,0.87f,0.70f);
+        // legs
+        childCube(-0.76f,-0.62f,0.75f,0.28f,0.55f,0.25f,legSwing*20f,0.38f,0.22f,0.12f);
+        childCube(0.76f,-0.62f,0.75f,0.28f,0.55f,0.25f,-legSwing*20f,0.38f,0.22f,0.12f);
+        childCube(-0.76f,-0.62f,-0.73f,0.29f,0.55f,0.26f,-legSwing*20f,0.38f,0.22f,0.12f);
+        childCube(0.76f,-0.62f,-0.73f,0.29f,0.55f,0.26f,legSwing*20f,0.38f,0.22f,0.12f);
+        popModel();
+    }
+
+    private final float[] parentModel=new float[16];
+    private boolean usingParent=false;
+    private void pushModel(float x,float y,float z,float rot,float sx,float sy,float sz){
+        Matrix.setIdentityM(parentModel,0);
+        Matrix.translateM(parentModel,0,x,y,z);
+        Matrix.rotateM(parentModel,0,rot,0,1,0);
+        Matrix.scaleM(parentModel,0,sx,sy,sz);
+        usingParent=true;
+    }
+    private void popModel(){usingParent=false;}
+    private void childSphere(float x,float y,float z,float sx,float sy,float sz,float rot,float r,float g,float b){
+        drawWithParent(sphere,x,y,z,sx,sy,sz,rot,r,g,b);
+    }
+    private void childCube(float x,float y,float z,float sx,float sy,float sz,float rot,float r,float g,float b){
+        drawWithParent(cube,x,y,z,sx,sy,sz,rot,r,g,b);
+    }
+    private void drawWithParent(Mesh mesh,float x,float y,float z,float sx,float sy,float sz,float rot,float r,float g,float b){
+        float[] local=new float[16];
+        Matrix.setIdentityM(local,0);
+        Matrix.translateM(local,0,x,y,z);
+        Matrix.rotateM(local,0,rot,1,0,0);
+        Matrix.scaleM(local,0,sx,sy,sz);
+        Matrix.multiplyMM(model,0,parentModel,0,local,0);
+        render(mesh,r,g,b);
+    }
+
+    private void drawCube(float x,float y,float z,float sx,float sy,float sz,float rot,float r,float g,float b){
+        compose(x,y,z,sx,sy,sz,rot); render(cube,r,g,b);
+    }
+    private void drawSphere(float x,float y,float z,float sx,float sy,float sz,float rot,float r,float g,float b){
+        compose(x,y,z,sx,sy,sz,rot); render(sphere,r,g,b);
+    }
+    private void compose(float x,float y,float z,float sx,float sy,float sz,float rot){
+        Matrix.setIdentityM(model,0);
+        Matrix.translateM(model,0,x,y,z);
+        Matrix.rotateM(model,0,rot,0,1,0);
+        Matrix.scaleM(model,0,sx,sy,sz);
+    }
+    private void render(Mesh mesh,float r,float g,float b){
+        Matrix.multiplyMM(mv,0,view,0,model,0);
+        Matrix.multiplyMM(mvp,0,projection,0,mv,0);
+        GLES20.glUniformMatrix4fv(uMvp,1,false,mvp,0);
+        GLES20.glUniformMatrix4fv(uModel,1,false,model,0);
+        GLES20.glUniform4f(uColor,r,g,b,1f);
+        mesh.draw(aPosition,aNormal);
+    }
+
+    private int buildProgram(String vs,String fs){
+        int vertex=compile(GLES20.GL_VERTEX_SHADER,vs);
+        int fragment=compile(GLES20.GL_FRAGMENT_SHADER,fs);
+        int p=GLES20.glCreateProgram();
+        GLES20.glAttachShader(p,vertex); GLES20.glAttachShader(p,fragment); GLES20.glLinkProgram(p);
+        int[] ok=new int[1]; GLES20.glGetProgramiv(p,GLES20.GL_LINK_STATUS,ok,0);
+        if(ok[0]==0) throw new RuntimeException("Shader link: "+GLES20.glGetProgramInfoLog(p));
+        GLES20.glDeleteShader(vertex); GLES20.glDeleteShader(fragment); return p;
+    }
+    private int compile(int type,String src){
+        int s=GLES20.glCreateShader(type); GLES20.glShaderSource(s,src); GLES20.glCompileShader(s);
+        int[] ok=new int[1]; GLES20.glGetShaderiv(s,GLES20.GL_COMPILE_STATUS,ok,0);
+        if(ok[0]==0) throw new RuntimeException("Shader: "+GLES20.glGetShaderInfoLog(s));
+        return s;
+    }
+
+    private static final String VERTEX =
+            "uniform mat4 uMVP;\n"+
+            "uniform mat4 uModel;\n"+
+            "attribute vec3 aPosition;\n"+
+            "attribute vec3 aNormal;\n"+
+            "varying vec3 vNormal;\n"+
+            "varying float vHeight;\n"+
+            "void main(){\n"+
+            " vec4 world=uModel*vec4(aPosition,1.0);\n"+
+            " vNormal=normalize(mat3(uModel)*aNormal);\n"+
+            " vHeight=world.y;\n"+
+            " gl_Position=uMVP*vec4(aPosition,1.0);\n"+
+            "}";
+    private static final String FRAGMENT =
+            "precision mediump float;\n"+
+            "uniform vec4 uColor;\n"+
+            "uniform vec3 uLightDir;\n"+
+            "varying vec3 vNormal;\n"+
+            "varying float vHeight;\n"+
+            "void main(){\n"+
+            " float d=max(dot(normalize(vNormal),normalize(uLightDir)),0.0);\n"+
+            " float light=0.44+0.56*d;\n"+
+            " float warm=clamp(vHeight/18.0,0.0,0.10);\n"+
+            " gl_FragColor=vec4(uColor.rgb*light+vec3(warm),uColor.a);\n"+
+            "}";
+}
