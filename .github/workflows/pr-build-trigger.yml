@@ -11,7 +11,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -22,7 +22,7 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
-      - name: Reconstruct and patch Godot project
+      - name: Reconstruct and patch Samsung A26 build
         run: python3 ci/build_tatis.py && python3 ci/fix_touch.py && python3 ci/fix_android_project.py
 
       - name: Install Android SDK 35
@@ -56,31 +56,68 @@ jobs:
           ./Godot_v4.6.3-stable_linux.x86_64 --headless --path project --editor --quit --verbose 2>&1 | tee godot-import.log
           ! grep -E "SCRIPT ERROR|Parse Error|ERROR: Failed to load script" godot-import.log
 
-      - name: Runtime smoke test
+      - name: Menu runtime smoke test
         run: |
           ./Godot_v4.6.3-stable_linux.x86_64 --headless --path project --quit-after 180 2>&1 | tee godot-runtime.log
           ! grep -E "SCRIPT ERROR|Parse Error|Invalid access|Invalid assignment|ERROR: Failed to load" godot-runtime.log
 
-      - name: Export debug APK
+      - name: Full world gameplay smoke test
+        run: |
+          ./Godot_v4.6.3-stable_linux.x86_64 --headless --path project --script res://tests/RuntimeWorldSmoke.gd 2>&1 | tee godot-world-smoke.log
+          grep -q "WORLD SMOKE: OK" godot-world-smoke.log
+          ! grep -E "SCRIPT ERROR|Parse Error|Invalid access|Invalid assignment|WORLD SMOKE FAILED" godot-world-smoke.log
+
+      - name: Export Samsung A26 debug APK
         env:
           GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ github.workspace }}/.debug.keystore
           GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
           GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
         run: |
           cp "$HOME/.android/debug.keystore" "$GITHUB_WORKSPACE/.debug.keystore"
-          ./Godot_v4.6.3-stable_linux.x86_64 --headless --path project --export-debug "Android" "$GITHUB_WORKSPACE/Tatis_Laberinto_Fauno_v1.0.0.apk" 2>&1 | tee godot-export-debug.log
-          test -s Tatis_Laberinto_Fauno_v1.0.0.apk
-          unzip -t Tatis_Laberinto_Fauno_v1.0.0.apk
+          ./Godot_v4.6.3-stable_linux.x86_64 --headless --path project --export-debug "Android" "$GITHUB_WORKSPACE/Tatis_Laberinto_Fauno_v1.0.1_Samsung_A26.apk" 2>&1 | tee godot-export-debug.log
+          test -s Tatis_Laberinto_Fauno_v1.0.1_Samsung_A26.apk
+          unzip -t Tatis_Laberinto_Fauno_v1.0.1_Samsung_A26.apk
 
-      - name: Export release APK
+      - name: Install, open and enter game in Android API 35 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            adb install -r Tatis_Laberinto_Fauno_v1.0.1_Samsung_A26.apk
+            adb logcat -c
+            adb shell settings put system accelerometer_rotation 0
+            adb shell settings put system user_rotation 1
+            adb shell monkey -p com.tatis.laberintodelfauno.safe -c android.intent.category.LAUNCHER 1
+            sleep 5
+            adb exec-out screencap -p > android-menu.png
+            read WIDTH HEIGHT <<< "$(python3 - <<'PY'
+            import struct
+            raw = open('android-menu.png', 'rb').read(24)
+            print(*struct.unpack('>II', raw[16:24]))
+            PY
+            )"
+            adb shell input tap $((WIDTH * 50 / 100)) $((HEIGHT * 36 / 100))
+            sleep 15
+            adb exec-out screencap -p > android-game.png
+            adb shell pidof com.tatis.laberintodelfauno.safe | tr -d '\r' | tee android-pid.txt
+            test -s android-pid.txt
+            adb logcat -d > android-logcat.txt
+            ! grep -E "ANR in com.tatis.laberintodelfauno.safe|FATAL EXCEPTION.*tatis|Fatal signal.*tatis" android-logcat.txt
+
+      - name: Export Samsung A26 release APK
         env:
           GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ github.workspace }}/tatis-release.keystore
           GODOT_ANDROID_KEYSTORE_RELEASE_USER: tatis
           GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: TatisBuild2026
         run: |
-          ./Godot_v4.6.3-stable_linux.x86_64 --headless --path project --export-release "Android" "$GITHUB_WORKSPACE/Tatis_Laberinto_Fauno_v1.0.0_release.apk" 2>&1 | tee godot-export-release.log
-          test -s Tatis_Laberinto_Fauno_v1.0.0_release.apk
-          unzip -t Tatis_Laberinto_Fauno_v1.0.0_release.apk
+          ./Godot_v4.6.3-stable_linux.x86_64 --headless --path project --export-release "Android" "$GITHUB_WORKSPACE/Tatis_Laberinto_Fauno_v1.0.1_Samsung_A26_release.apk" 2>&1 | tee godot-export-release.log
+          test -s Tatis_Laberinto_Fauno_v1.0.1_Samsung_A26_release.apk
+          unzip -t Tatis_Laberinto_Fauno_v1.0.1_Samsung_A26_release.apk
 
       - name: Validate and package deliverables
         run: |
@@ -90,20 +127,20 @@ jobs:
           cp project/README.md project/CHANGELOG.md project/LICENSES.md project/REPORTE_PRUEBAS.md project/ERRORES_CORREGIDOS.md .
           rm -rf project/.godot
           cd project
-          zip -qr ../Tatis_Laberinto_Fauno_Proyecto_Godot.zip .
+          zip -qr ../Tatis_Laberinto_Fauno_v1.0.1_Proyecto_Godot.zip .
           cd ..
-          ls -lh *.apk Tatis_Laberinto_Fauno_Proyecto_Godot.zip
+          ls -lh *.apk Tatis_Laberinto_Fauno_v1.0.1_Proyecto_Godot.zip
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Tatis-Laberinto-Fauno-v1.0.0
+          name: Tatis-Laberinto-Fauno-v1.0.1-Samsung-A26
           retention-days: 30
           if-no-files-found: warn
           path: |
-            Tatis_Laberinto_Fauno_v1.0.0.apk
-            Tatis_Laberinto_Fauno_v1.0.0_release.apk
-            Tatis_Laberinto_Fauno_Proyecto_Godot.zip
+            Tatis_Laberinto_Fauno_v1.0.1_Samsung_A26.apk
+            Tatis_Laberinto_Fauno_v1.0.1_Samsung_A26_release.apk
+            Tatis_Laberinto_Fauno_v1.0.1_Proyecto_Godot.zip
             README.md
             CHANGELOG.md
             LICENSES.md
@@ -112,6 +149,11 @@ jobs:
             APK_SHA256SUMS.txt
             godot-import.log
             godot-runtime.log
+            godot-world-smoke.log
             godot-export-debug.log
             godot-export-release.log
             static-validation.log
+            android-menu.png
+            android-game.png
+            android-pid.txt
+            android-logcat.txt
