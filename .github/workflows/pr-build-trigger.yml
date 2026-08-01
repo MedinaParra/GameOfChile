@@ -1,0 +1,80 @@
+name: PR Build Tatis Android APK
+
+on:
+  pull_request:
+    branches: ["master"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ github.workspace }}/.debug.keystore
+      GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+      GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
+      GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ github.workspace }}/tatis-release.keystore
+      GODOT_ANDROID_KEYSTORE_RELEASE_USER: tatis
+      GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: TatisBuild2026
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Execute validated build recipe
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          import subprocess
+
+          workflow = Path('.github/workflows/build-tatis.yml').read_text(encoding='utf-8').splitlines()
+          blocks = []
+          i = 0
+          while i < len(workflow):
+              if workflow[i].startswith('        run: |'):
+                  i += 1
+                  body = []
+                  while i < len(workflow):
+                      line = workflow[i]
+                      if line and not line.startswith('          '):
+                          break
+                      body.append(line[10:] if line.startswith('          ') else '')
+                      i += 1
+                  blocks.append('\n'.join(body))
+                  continue
+              i += 1
+
+          print(f'Executing {len(blocks)} build stages')
+          for index, body in enumerate(blocks, 1):
+              script = Path(f'/tmp/tatis-stage-{index:02d}.sh')
+              script.write_text(body + '\n', encoding='utf-8')
+              print(f'--- stage {index}/{len(blocks)} ---')
+              subprocess.run(['bash', '-euo', 'pipefail', str(script)], check=True, env=os.environ.copy())
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Tatis-Laberinto-Fauno-v1.0.0
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            Tatis_Laberinto_Fauno_v1.0.0.apk
+            Tatis_Laberinto_Fauno_v1.0.0_release.apk
+            Tatis_Laberinto_Fauno_Proyecto_Godot.zip
+            README.md
+            CHANGELOG.md
+            LICENSES.md
+            REPORTE_PRUEBAS.md
+            ERRORES_CORREGIDOS.md
+            APK_SHA256SUMS.txt
+            godot-import.log
+            godot-runtime.log
+            godot-export-debug.log
+            godot-export-release.log
+            static-validation.log
