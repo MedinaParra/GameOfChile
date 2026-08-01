@@ -23,7 +23,7 @@ jobs:
       - uses: android-actions/setup-android@v3
 
       - name: Reconstruct and patch Godot project
-        run: python3 ci/build_tatis.py && python3 ci/fix_touch.py
+        run: python3 ci/build_tatis.py && python3 ci/fix_touch.py && python3 ci/fix_android_project.py
 
       - name: Install Android SDK 35
         run: |
@@ -49,6 +49,7 @@ jobs:
           keytool -genkeypair -keystore "$GITHUB_WORKSPACE/tatis-release.keystore" -storepass TatisBuild2026 -alias tatis -keypass TatisBuild2026 -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Tatis Laberinto,O=Tatis,C=CL"
           python3 ci/build_tatis.py --signing
           python3 ci/fix_touch.py
+          python3 ci/fix_android_project.py
 
       - name: Import and parse all GDScript
         run: |
