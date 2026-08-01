@@ -28,7 +28,7 @@ jobs:
       - name: Install Android SDK 35
         run: |
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.1"
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.1" "cmdline-tools;latest" "cmake;3.10.2.4988404" "ndk;28.1.13356709"
 
       - name: Install Godot 4.6.3 and export templates
         run: |
@@ -61,12 +61,21 @@ jobs:
           ! grep -E "SCRIPT ERROR|Parse Error|Invalid access|Invalid assignment|ERROR: Failed to load" godot-runtime.log
 
       - name: Export debug APK
+        env:
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ github.workspace }}/.debug.keystore
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
         run: |
+          cp "$HOME/.android/debug.keystore" "$GITHUB_WORKSPACE/.debug.keystore"
           ./Godot_v4.6.3-stable_linux.x86_64 --headless --path project --export-debug "Android" "$GITHUB_WORKSPACE/Tatis_Laberinto_Fauno_v1.0.0.apk" 2>&1 | tee godot-export-debug.log
           test -s Tatis_Laberinto_Fauno_v1.0.0.apk
           unzip -t Tatis_Laberinto_Fauno_v1.0.0.apk
 
       - name: Export release APK
+        env:
+          GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ github.workspace }}/tatis-release.keystore
+          GODOT_ANDROID_KEYSTORE_RELEASE_USER: tatis
+          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: TatisBuild2026
         run: |
           ./Godot_v4.6.3-stable_linux.x86_64 --headless --path project --export-release "Android" "$GITHUB_WORKSPACE/Tatis_Laberinto_Fauno_v1.0.0_release.apk" 2>&1 | tee godot-export-release.log
           test -s Tatis_Laberinto_Fauno_v1.0.0_release.apk
@@ -75,6 +84,7 @@ jobs:
       - name: Validate and package deliverables
         run: |
           python3 project/tests/static_validate.py | tee static-validation.log
+          python3 ci/finalize_docs.py
           sha256sum *.apk | tee APK_SHA256SUMS.txt
           cp project/README.md project/CHANGELOG.md project/LICENSES.md project/REPORTE_PRUEBAS.md project/ERRORES_CORREGIDOS.md .
           rm -rf project/.godot
