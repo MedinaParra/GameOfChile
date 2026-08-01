@@ -189,5 +189,11 @@ if '[debug]' not in config:
 gdscript/warnings/treat_warnings_as_errors=false
 gdscript/warnings/inference_on_variant=0
 '''
+if '[textures]' not in config:
+    config += '''
+
+[textures]
+vram_compression/import_etc2_astc=true
+'''
 config_path.write_text(config, encoding='utf-8')
-print('Applied parser-safe touch controls, audio and warning settings')
+print('Applied parser-safe touch controls, audio, warnings and Android ETC2/ASTC import')
