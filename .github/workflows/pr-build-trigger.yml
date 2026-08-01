@@ -56,12 +56,14 @@ jobs:
               print(f'--- stage {index}/{len(blocks)} ---')
               if index == 1:
                   raw = ''.join(p.read_text(encoding='utf-8') for p in sorted(Path('bootstrap_parts').glob('part_*')))
-                  raw = raw.replace("FILES = json.loads('", "FILES = json.loads(r'''", 1)
+                  raw = raw.replace("FILES = json.loads('", "FILES = json.loads('''", 1)
                   raw = raw.replace("\"}')\nroot=Path", "\"}''')\nroot=Path", 1)
                   Path('bootstrap.py').write_text(raw, encoding='utf-8')
                   subprocess.run(['python3', 'bootstrap.py'], check=True, env=os.environ.copy())
                   shutil.rmtree('project', ignore_errors=True)
                   Path('tatis').rename('project')
+                  project_cfg = Path('project/project.godot')
+                  project_cfg.write_text(project_cfg.read_text(encoding='utf-8').replace('[display/window]]', '[display/window]'), encoding='utf-8')
                   continue
               script = Path(f'/tmp/tatis-stage-{index:02d}.sh')
               script.write_text(body + '\n', encoding='utf-8')
