@@ -17,6 +17,7 @@ jobs:
       - name: Restore Android project
         run: |
           base64 -d A-tatis-source.zip.b64 > A-tatis-source.zip
+          printf '\0' >> A-tatis-source.zip
           unzip -q A-tatis-source.zip
       - uses: actions/setup-java@v4
         with:
