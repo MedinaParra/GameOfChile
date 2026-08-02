@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - master
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "Capybara3D-source.tar.gz.b64"
       - ".github/workflows/build-capybara3d.yml"
