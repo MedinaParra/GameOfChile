@@ -8,6 +8,12 @@ on:
     paths:
       - "Capybara3D-source.tar.gz.b64"
       - ".github/workflows/build-capybara3d.yml"
+  pull_request:
+    branches:
+      - master
+    paths:
+      - "Capybara3D-source.tar.gz.b64"
+      - ".github/workflows/build-capybara3d.yml"
 
 permissions:
   contents: read
