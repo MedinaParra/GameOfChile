@@ -68,3 +68,5 @@ jobs:
             Capibara3D-v1.0.0-debug.apk.sha256
           if-no-files-found: error
           retention-days: 30
+
+# Validation workflow synchronized with the draft pull request.
