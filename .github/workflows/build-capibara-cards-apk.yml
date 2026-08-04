@@ -52,6 +52,8 @@ jobs:
           tar -xzf "$RUNNER_TEMP/capibara-source.tar.gz"
           test -f "$PROJECT_DIR/project.godot"
           test -f "$PROJECT_DIR/export_presets.cfg"
+          sed -i 's#rendering/textures/vram_compression/import_etc2_astc=true#textures/vram_compression/import_etc2_astc=true#' "$PROJECT_DIR/project.godot"
+          grep -n "import_etc2_astc" "$PROJECT_DIR/project.godot"
 
       - name: Set up Node for 3D optimization
         uses: actions/setup-node@v4
@@ -66,6 +68,9 @@ jobs:
           rm -f "$PROJECT_DIR/assets/models/capybara_optimized.glb"
 
           if curl --fail --location --retry 5 --retry-delay 4 \
+              --user-agent "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/138 Safari/537.36" \
+              --referer "https://studio.tripo3d.ai/" \
+              --header "Accept: application/octet-stream,*/*" \
               --connect-timeout 30 --max-time 600 \
               "$MODEL_URL" -o /tmp/capybara_original.glb; then
             echo "Exact Tripo capybara downloaded: $(du -h /tmp/capybara_original.glb | cut -f1)"
