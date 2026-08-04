@@ -7,12 +7,14 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "capibara-cards-source.tar.gz.b64"
+      - "capibara-source/**"
       - ".github/workflows/build-capibara-cards-apk.yml"
   push:
     branches:
       - agent/capibara-cards-apk
     paths:
       - "capibara-cards-source.tar.gz.b64"
+      - "capibara-source/**"
       - ".github/workflows/build-capibara-cards-apk.yml"
   workflow_dispatch:
 
@@ -43,8 +45,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          base64 --decode capibara-cards-source.tar.gz.b64 > "$RUNNER_TEMP/capibara-source.tar.gz"
+          cat capibara-source/source.part.* > "$RUNNER_TEMP/capibara-source.tar.gz.b64"
+          base64 --decode "$RUNNER_TEMP/capibara-source.tar.gz.b64" > "$RUNNER_TEMP/capibara-source.tar.gz"
           echo "8551909fde5547eba86bea0eb8e04f810f69d46080ba21eec8116456e7b50953  $RUNNER_TEMP/capibara-source.tar.gz" | sha256sum --check
+          gzip --test "$RUNNER_TEMP/capibara-source.tar.gz"
           tar -xzf "$RUNNER_TEMP/capibara-source.tar.gz"
           test -f "$PROJECT_DIR/project.godot"
           test -f "$PROJECT_DIR/export_presets.cfg"
