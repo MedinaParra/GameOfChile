@@ -1,6 +1,13 @@
 name: Build Capibara Cards APK
 
 on:
+  pull_request:
+    branches:
+      - master
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "capibara-cards-source.tar.gz.b64"
+      - ".github/workflows/build-capibara-cards-apk.yml"
   push:
     branches:
       - agent/capibara-cards-apk
