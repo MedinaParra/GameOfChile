@@ -1,0 +1,108 @@
+name: Package Capibara Local Toolchain
+
+on:
+  push:
+    branches:
+      - agent/capibara-cards-apk
+    paths:
+      - ".github/workflows/package-capibara-local-toolchain.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package-toolchain:
+    name: Package local Android build tools
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      GODOT_VERSION: "4.7.1"
+      GODOT_RELEASE: "4.7.1-stable"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install required Android packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0"
+
+      - name: Download Godot editor and Android template
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/godot-editor" "$RUNNER_TEMP/godot-templates"
+          curl --fail --location --retry 5 \
+            "https://github.com/godotengine/godot-builds/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_linux.x86_64.zip" \
+            -o "$RUNNER_TEMP/godot.zip"
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot-editor"
+          chmod +x "$RUNNER_TEMP/godot-editor/Godot_v${GODOT_RELEASE}_linux.x86_64"
+
+          curl --fail --location --retry 5 \
+            "https://github.com/godotengine/godot-builds/releases/download/${GODOT_RELEASE}/Godot_v${GODOT_RELEASE}_export_templates.tpz" \
+            -o "$RUNNER_TEMP/templates.tpz"
+          unzip -q "$RUNNER_TEMP/templates.tpz" -d "$RUNNER_TEMP/godot-templates"
+
+      - name: Download gltfpack
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/gltfpack"
+          curl --fail --location --retry 5 \
+            "https://github.com/zeux/meshoptimizer/releases/download/v1.2/gltfpack-ubuntu.zip" \
+            -o "$RUNNER_TEMP/gltfpack.zip"
+          unzip -q "$RUNNER_TEMP/gltfpack.zip" -d "$RUNNER_TEMP/gltfpack"
+          chmod +x "$RUNNER_TEMP/gltfpack/gltfpack"
+          "$RUNNER_TEMP/gltfpack/gltfpack" -h >/dev/null
+
+      - name: Assemble compact toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/capibara-toolchain"
+          mkdir -p "$OUT/godot" "$OUT/templates/4.7.1.stable" "$OUT/android-sdk/build-tools" "$OUT/android-sdk/platforms" "$OUT/android-sdk/platform-tools" "$OUT/gltfpack"
+
+          cp "$RUNNER_TEMP/godot-editor/Godot_v${GODOT_RELEASE}_linux.x86_64" "$OUT/godot/godot"
+          cp "$RUNNER_TEMP/gltfpack/gltfpack" "$OUT/gltfpack/gltfpack"
+
+          cp "$RUNNER_TEMP/godot-templates/templates/android_debug.apk" "$OUT/templates/4.7.1.stable/android_debug.apk"
+          cp "$RUNNER_TEMP/godot-templates/templates/android_release.apk" "$OUT/templates/4.7.1.stable/android_release.apk"
+          if [ -f "$RUNNER_TEMP/godot-templates/templates/version.txt" ]; then
+            cp "$RUNNER_TEMP/godot-templates/templates/version.txt" "$OUT/templates/4.7.1.stable/version.txt"
+          fi
+
+          cp -a "$ANDROID_HOME/build-tools/36.0.0" "$OUT/android-sdk/build-tools/"
+          cp -a "$ANDROID_HOME/platforms/android-36" "$OUT/android-sdk/platforms/"
+          cp -a "$ANDROID_HOME/platform-tools/." "$OUT/android-sdk/platform-tools/"
+
+          chmod +x "$OUT/godot/godot" "$OUT/gltfpack/gltfpack"
+          find "$OUT/android-sdk/build-tools/36.0.0" -maxdepth 1 -type f -exec chmod +x {} + || true
+          find "$OUT/android-sdk/platform-tools" -maxdepth 1 -type f -exec chmod +x {} + || true
+
+          du -sh "$OUT"
+          find "$OUT" -maxdepth 4 -type f -printf '%p %k KB\n' | sort
+
+      - name: Upload compact build toolchain
+        uses: actions/upload-artifact@v4
+        with:
+          name: Capibara-Local-Build-Toolchain
+          path: ${{ runner.temp }}/capibara-toolchain
+          compression-level: 6
+          retention-days: 7
+          if-no-files-found: error
