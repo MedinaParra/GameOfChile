@@ -1,0 +1,565 @@
+name: Build Capibara Tripo Alpha 0.3
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - master
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Configure Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform
+        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.1"
+
+      - name: Configure Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Create Android project
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROJECT="CapibaraTripoAlpha03"
+          mkdir -p "$PROJECT/app/src/main/java/cl/medinaparra/capibaratripo"
+          mkdir -p "$PROJECT/app/src/main/assets"
+
+          cat > "$PROJECT/settings.gradle" <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "CapibaraTripoAlpha03"
+          include(":app")
+          EOF
+
+          cat > "$PROJECT/build.gradle" <<'EOF'
+          plugins {
+              id "com.android.application" version "8.8.2" apply false
+          }
+          EOF
+
+          cat > "$PROJECT/app/build.gradle" <<'EOF'
+          plugins {
+              id "com.android.application"
+          }
+
+          android {
+              namespace "cl.medinaparra.capibaratripo"
+              compileSdk 35
+
+              defaultConfig {
+                  applicationId "cl.medinaparra.capibaratripo.alpha03"
+                  minSdk 26
+                  targetSdk 35
+                  versionCode 3
+                  versionName "0.3"
+              }
+
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                      shrinkResources false
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+          EOF
+
+          cat > "$PROJECT/app/src/main/AndroidManifest.xml" <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+
+              <application
+                  android:allowBackup="false"
+                  android:extractNativeLibs="false"
+                  android:fullBackupContent="false"
+                  android:label="Capibara Tripo Alpha 0.3"
+                  android:usesCleartextTraffic="false"
+                  android:theme="@android:style/Theme.Material.Light.NoActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:configChanges="orientation|screenSize|keyboardHidden"
+                      android:exported="true"
+                      android:screenOrientation="portrait">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > "$PROJECT/app/src/main/java/cl/medinaparra/capibaratripo/MainActivity.java" <<'EOF'
+          package cl.medinaparra.capibaratripo;
+
+          import android.annotation.SuppressLint;
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.view.View;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+
+          public final class MainActivity extends Activity {
+              private WebView webView;
+
+              @SuppressLint("SetJavaScriptEnabled")
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  getWindow().getDecorView().setSystemUiVisibility(
+                      View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
+                      View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
+                      View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                  );
+
+                  webView = new WebView(this);
+                  setContentView(webView);
+
+                  WebSettings settings = webView.getSettings();
+                  settings.setJavaScriptEnabled(true);
+                  settings.setDomStorageEnabled(true);
+                  settings.setAllowFileAccess(true);
+                  settings.setAllowContentAccess(false);
+                  settings.setAllowFileAccessFromFileURLs(true);
+                  settings.setAllowUniversalAccessFromFileURLs(true);
+                  settings.setMediaPlaybackRequiresUserGesture(false);
+                  settings.setBuiltInZoomControls(false);
+                  settings.setDisplayZoomControls(false);
+                  settings.setSupportZoom(false);
+                  settings.setUserAgentString(settings.getUserAgentString() + " CapibaraTripo/0.3");
+
+                  webView.setWebViewClient(new WebViewClient());
+                  webView.setWebChromeClient(new WebChromeClient());
+                  webView.loadUrl("file:///android_asset/index.html");
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (webView != null && webView.canGoBack()) {
+                      webView.goBack();
+                  } else {
+                      super.onBackPressed();
+                  }
+              }
+
+              @Override
+              protected void onDestroy() {
+                  if (webView != null) {
+                      webView.loadUrl("about:blank");
+                      webView.stopLoading();
+                      webView.destroy();
+                      webView = null;
+                  }
+                  super.onDestroy();
+              }
+          }
+          EOF
+
+          cat > "$PROJECT/app/src/main/assets/index.html" <<'EOF'
+          <!doctype html>
+          <html lang="es">
+          <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+            <title>Capibara Tripo Alpha 0.3</title>
+            <style>
+              :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+              * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+              html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #121a17; }
+              #renderCanvas { width: 100%; height: 100%; touch-action: none; display: block; }
+              #topbar {
+                position: fixed; left: 12px; right: 12px; top: max(12px, env(safe-area-inset-top));
+                z-index: 20; display: flex; justify-content: space-between; align-items: center;
+                pointer-events: none;
+              }
+              .pill {
+                background: rgba(20, 31, 27, .78); border: 1px solid rgba(255,255,255,.15);
+                backdrop-filter: blur(10px); border-radius: 999px; padding: 8px 12px;
+                font-weight: 700; font-size: 13px; box-shadow: 0 5px 20px rgba(0,0,0,.28);
+              }
+              #status { font-weight: 600; opacity: .9; }
+              #face {
+                position: fixed; left: 50%; top: 41%; width: 142px; height: 92px;
+                transform: translate(-50%, -50%); z-index: 12; pointer-events: none;
+                filter: drop-shadow(0 3px 4px rgba(0,0,0,.45));
+              }
+              .eye {
+                position: absolute; top: 18px; width: 21px; height: 27px; border-radius: 50%;
+                background: #17110d; transition: transform .13s, height .13s, border-radius .13s, top .13s;
+              }
+              #eyeL { left: 32px; } #eyeR { right: 32px; }
+              .shine { position: absolute; width: 6px; height: 6px; border-radius: 50%; background: #fff; top: 4px; left: 4px; opacity: .85; }
+              #browL, #browR {
+                position: absolute; top: 5px; width: 30px; height: 6px; background: #2a1710;
+                border-radius: 999px; transition: transform .18s, top .18s;
+              }
+              #browL { left: 25px; } #browR { right: 25px; }
+              #mouth {
+                position: absolute; left: 50%; top: 57px; width: 44px; height: 18px;
+                transform: translateX(-50%); border-bottom: 6px solid #351812;
+                border-radius: 0 0 44px 44px; transition: all .18s;
+              }
+              #controls {
+                position: fixed; left: 10px; right: 10px; bottom: max(12px, env(safe-area-inset-bottom));
+                z-index: 25; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+              }
+              button {
+                min-height: 46px; border: 1px solid rgba(255,255,255,.14); border-radius: 14px;
+                background: rgba(27, 42, 36, .86); color: #fff; font-weight: 750; font-size: 13px;
+                box-shadow: 0 5px 18px rgba(0,0,0,.28); backdrop-filter: blur(10px);
+              }
+              button:active, button.active { transform: scale(.97); background: rgba(81, 124, 89, .95); }
+              #loading {
+                position: fixed; inset: 0; z-index: 50; display: grid; place-items: center;
+                background: radial-gradient(circle at 50% 35%, #294238, #111916 70%);
+                padding: 28px; text-align: center;
+              }
+              #loading.hidden { display: none; }
+              #loading strong { display: block; font-size: 22px; margin-bottom: 8px; }
+              #loading small { opacity: .78; line-height: 1.4; }
+              .spinner {
+                width: 42px; height: 42px; margin: 0 auto 18px; border-radius: 50%;
+                border: 4px solid rgba(255,255,255,.2); border-top-color: #fff;
+                animation: spin .8s linear infinite;
+              }
+              @keyframes spin { to { transform: rotate(360deg); } }
+            </style>
+          </head>
+          <body>
+            <canvas id="renderCanvas"></canvas>
+            <div id="topbar">
+              <div class="pill">Capibara Tripo · α0.3</div>
+              <div class="pill" id="status">Cargando</div>
+            </div>
+
+            <div id="face" aria-hidden="true">
+              <div id="browL"></div><div id="browR"></div>
+              <div class="eye" id="eyeL"><i class="shine"></i></div>
+              <div class="eye" id="eyeR"><i class="shine"></i></div>
+              <div id="mouth"></div>
+            </div>
+
+            <div id="controls">
+              <button data-expression="neutral" class="active">Neutral</button>
+              <button data-expression="happy">Feliz</button>
+              <button data-expression="sad">Triste</button>
+              <button data-expression="angry">Enojado</button>
+              <button data-expression="surprised">Sorprendido</button>
+              <button data-expression="sleepy">Dormido</button>
+            </div>
+
+            <div id="loading">
+              <div>
+                <div class="spinner"></div>
+                <strong>Cargando el capibara 3D</strong>
+                <small>La primera apertura necesita Internet para Babylon.js, Meshopt y el modelo Tripo.</small>
+              </div>
+            </div>
+
+            <script src="https://cdn.babylonjs.com/babylon.js"></script>
+            <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+            <script>
+              (() => {
+                "use strict";
+                const MODEL_URL = "https://tripo-data.rg1.data.tripo3d.com/tripo-studio/20260804/b83cf9ce-7a63-4a9c-8b78-23bf148a34f0/tripo_pbr_model_b83cf9ce-7a63-4a9c-8b78-23bf148a34f0_meshopt.glb";
+                const canvas = document.getElementById("renderCanvas");
+                const status = document.getElementById("status");
+                const loading = document.getElementById("loading");
+                const eyeL = document.getElementById("eyeL");
+                const eyeR = document.getElementById("eyeR");
+                const browL = document.getElementById("browL");
+                const browR = document.getElementById("browR");
+                const mouth = document.getElementById("mouth");
+                let currentExpression = "neutral";
+                let blinkTimer = null;
+
+                function setExpression(name) {
+                  currentExpression = name;
+                  document.querySelectorAll("button[data-expression]").forEach(btn => {
+                    btn.classList.toggle("active", btn.dataset.expression === name);
+                  });
+
+                  [eyeL, eyeR].forEach(eye => {
+                    eye.style.height = "27px";
+                    eye.style.top = "18px";
+                    eye.style.transform = "scale(1)";
+                    eye.style.borderRadius = "50%";
+                    eye.style.background = "#17110d";
+                  });
+                  browL.style.transform = "rotate(0deg)";
+                  browR.style.transform = "rotate(0deg)";
+                  browL.style.top = browR.style.top = "5px";
+                  Object.assign(mouth.style, {
+                    top: "57px", width: "44px", height: "18px",
+                    border: "0", borderBottom: "6px solid #351812",
+                    borderRadius: "0 0 44px 44px",
+                    background: "transparent"
+                  });
+
+                  if (name === "happy") {
+                    eyeL.style.transform = eyeR.style.transform = "scaleY(.72)";
+                    mouth.style.width = "56px";
+                    mouth.style.height = "26px";
+                    mouth.style.borderBottomWidth = "7px";
+                  } else if (name === "sad") {
+                    browL.style.transform = "rotate(-16deg)";
+                    browR.style.transform = "rotate(16deg)";
+                    mouth.style.top = "66px";
+                    mouth.style.borderBottom = "0";
+                    mouth.style.borderTop = "6px solid #351812";
+                    mouth.style.borderRadius = "44px 44px 0 0";
+                  } else if (name === "angry") {
+                    browL.style.transform = "rotate(20deg)";
+                    browR.style.transform = "rotate(-20deg)";
+                    browL.style.top = browR.style.top = "12px";
+                    eyeL.style.transform = eyeR.style.transform = "scaleY(.74)";
+                    mouth.style.width = "38px";
+                    mouth.style.borderBottomWidth = "5px";
+                  } else if (name === "surprised") {
+                    eyeL.style.transform = eyeR.style.transform = "scale(1.25)";
+                    mouth.style.top = "55px";
+                    mouth.style.width = "24px";
+                    mouth.style.height = "30px";
+                    mouth.style.border = "5px solid #351812";
+                    mouth.style.borderRadius = "50%";
+                  } else if (name === "sleepy") {
+                    [eyeL, eyeR].forEach(eye => {
+                      eye.style.height = "5px";
+                      eye.style.top = "31px";
+                      eye.style.borderRadius = "999px";
+                    });
+                    mouth.style.width = "28px";
+                    mouth.style.height = "10px";
+                    mouth.style.borderBottomWidth = "4px";
+                  }
+                }
+
+                function blink() {
+                  if (currentExpression === "sleepy") return;
+                  eyeL.style.height = eyeR.style.height = "4px";
+                  eyeL.style.top = eyeR.style.top = "31px";
+                  setTimeout(() => {
+                    setExpression(currentExpression);
+                    scheduleBlink();
+                  }, 130);
+                }
+
+                function scheduleBlink() {
+                  clearTimeout(blinkTimer);
+                  blinkTimer = setTimeout(blink, 2200 + Math.random() * 2600);
+                }
+
+                document.querySelectorAll("button[data-expression]").forEach(btn => {
+                  btn.addEventListener("click", () => {
+                    setExpression(btn.dataset.expression);
+                    scheduleBlink();
+                  });
+                });
+
+                if (!window.BABYLON) {
+                  status.textContent = "Sin conexión";
+                  loading.querySelector("strong").textContent = "No se pudo cargar Babylon.js";
+                  loading.querySelector("small").textContent = "Comprueba Internet y vuelve a abrir la aplicación.";
+                  return;
+                }
+
+                const engine = new BABYLON.Engine(canvas, true, {
+                  preserveDrawingBuffer: true,
+                  stencil: true,
+                  adaptToDeviceRatio: true
+                });
+                const scene = new BABYLON.Scene(engine);
+                scene.clearColor = new BABYLON.Color4(0.055, 0.09, 0.075, 1);
+
+                const camera = new BABYLON.ArcRotateCamera(
+                  "camera", Math.PI / 2, Math.PI / 2.25, 4.5,
+                  BABYLON.Vector3.Zero(), scene
+                );
+                camera.attachControl(canvas, true);
+                camera.wheelPrecision = 35;
+                camera.pinchPrecision = 65;
+                camera.lowerBetaLimit = 0.25;
+                camera.upperBetaLimit = Math.PI - 0.25;
+                camera.inertia = 0.78;
+
+                const hemi = new BABYLON.HemisphericLight(
+                  "hemi", new BABYLON.Vector3(0, 1, 0), scene
+                );
+                hemi.intensity = 1.05;
+                const key = new BABYLON.DirectionalLight(
+                  "key", new BABYLON.Vector3(-0.5, -1, -0.35), scene
+                );
+                key.position = new BABYLON.Vector3(4, 8, 5);
+                key.intensity = 1.35;
+
+                const ground = BABYLON.MeshBuilder.CreateDisc(
+                  "ground", { radius: 4, tessellation: 96 }, scene
+                );
+                ground.rotation.x = Math.PI / 2;
+                ground.position.y = -0.02;
+                const groundMat = new BABYLON.PBRMaterial("groundMat", scene);
+                groundMat.albedoColor = new BABYLON.Color3(0.13, 0.22, 0.17);
+                groundMat.roughness = 0.95;
+                ground.material = groundMat;
+
+                const parts = MODEL_URL.split("/");
+                const fileName = parts.pop();
+                const rootUrl = parts.join("/") + "/";
+
+                status.textContent = "Descargando";
+                BABYLON.SceneLoader.ImportMeshAsync("", rootUrl, fileName, scene)
+                  .then(result => {
+                    const meshes = result.meshes.filter(m => m && m.getBoundingInfo && m.name !== "__root__");
+                    if (!meshes.length) throw new Error("El modelo no contiene mallas visibles.");
+
+                    let min = new BABYLON.Vector3(Number.MAX_VALUE, Number.MAX_VALUE, Number.MAX_VALUE);
+                    let max = new BABYLON.Vector3(-Number.MAX_VALUE, -Number.MAX_VALUE, -Number.MAX_VALUE);
+                    meshes.forEach(mesh => {
+                      mesh.computeWorldMatrix(true);
+                      const box = mesh.getBoundingInfo().boundingBox;
+                      min = BABYLON.Vector3.Minimize(min, box.minimumWorld);
+                      max = BABYLON.Vector3.Maximize(max, box.maximumWorld);
+                    });
+
+                    const center = min.add(max).scale(0.5);
+                    const extent = max.subtract(min);
+                    const span = Math.max(extent.x, extent.y, extent.z, 1);
+                    camera.setTarget(center);
+                    camera.radius = span * 2.05;
+                    camera.lowerRadiusLimit = span * 0.75;
+                    camera.upperRadiusLimit = span * 5.5;
+                    const groundScale = Math.max(span * 0.85, 1);
+                    ground.scaling.x = groundScale;
+                    ground.scaling.y = groundScale;
+                    ground.scaling.z = groundScale;
+                    ground.position.y = min.y - 0.015 * span;
+
+                    const root = result.meshes[0];
+                    if (root) {
+                      root.rotationQuaternion = null;
+                      root.rotation.y += Math.PI;
+                    }
+
+                    status.textContent = "Listo";
+                    loading.classList.add("hidden");
+                    setExpression("neutral");
+                    scheduleBlink();
+                  })
+                  .catch(error => {
+                    console.error(error);
+                    status.textContent = "Error de carga";
+                    loading.querySelector("strong").textContent = "No se pudo abrir el modelo 3D";
+                    loading.querySelector("small").textContent =
+                      "Revisa la conexión. El enlace Tripo puede haber expirado o bloquear la descarga.";
+                  });
+
+                engine.runRenderLoop(() => scene.render());
+                window.addEventListener("resize", () => engine.resize());
+              })();
+            </script>
+          </body>
+          </html>
+          EOF
+
+      - name: Build unsigned release APK
+        working-directory: CapibaraTripoAlpha03
+        run: gradle --no-daemon --stacktrace assembleRelease
+
+      - name: Sign with APK Signature v1 v2 v3
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS="$ANDROID_HOME/build-tools/35.0.1"
+          UNSIGNED="CapibaraTripoAlpha03/app/build/outputs/apk/release/app-release-unsigned.apk"
+          ALIGNED="Capibara-Tripo-Expresiones-Alpha-0.3-aligned.apk"
+          FINAL="Capibara-Tripo-Expresiones-Alpha-0.3.apk"
+          STORE_PASS="CapibaraAlpha03-2026"
+          KEY_PASS="CapibaraAlpha03-2026"
+
+          keytool -genkeypair -noprompt \
+            -keystore capibara-alpha03-release.jks \
+            -storepass "$STORE_PASS" \
+            -keypass "$KEY_PASS" \
+            -alias capibaraalpha03 \
+            -keyalg RSA \
+            -keysize 3072 \
+            -sigalg SHA256withRSA \
+            -validity 10000 \
+            -dname "CN=Capibara Tripo Alpha 0.3, OU=Android, O=MedinaParra, L=Antofagasta, ST=Antofagasta, C=CL"
+
+          "$BUILD_TOOLS/zipalign" -p -f 4 "$UNSIGNED" "$ALIGNED"
+          "$BUILD_TOOLS/apksigner" sign \
+            --ks capibara-alpha03-release.jks \
+            --ks-key-alias capibaraalpha03 \
+            --ks-pass "pass:$STORE_PASS" \
+            --key-pass "pass:$KEY_PASS" \
+            --v1-signing-enabled true \
+            --v2-signing-enabled true \
+            --v3-signing-enabled true \
+            --v4-signing-enabled false \
+            --out "$FINAL" \
+            "$ALIGNED"
+
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$FINAL" | tee Capibara-Tripo-Expresiones-Alpha-0.3-signature.txt
+          "$BUILD_TOOLS/aapt" dump badging "$FINAL" | tee Capibara-Tripo-Expresiones-Alpha-0.3-badging.txt
+          sha256sum "$FINAL" | tee Capibara-Tripo-Expresiones-Alpha-0.3.apk.sha256
+          rm -f "$ALIGNED" capibara-alpha03-release.jks
+
+      - name: Package source
+        run: tar -czf Capibara-Tripo-Expresiones-Alpha-0.3-source.tar.gz CapibaraTripoAlpha03
+
+      - name: Upload APK and validation
+        uses: actions/upload-artifact@v4
+        with:
+          name: Capibara-Tripo-Expresiones-Alpha-0.3
+          path: |
+            Capibara-Tripo-Expresiones-Alpha-0.3.apk
+            Capibara-Tripo-Expresiones-Alpha-0.3.apk.sha256
+            Capibara-Tripo-Expresiones-Alpha-0.3-signature.txt
+            Capibara-Tripo-Expresiones-Alpha-0.3-badging.txt
+            Capibara-Tripo-Expresiones-Alpha-0.3-source.tar.gz
+          if-no-files-found: error
+          retention-days: 30
