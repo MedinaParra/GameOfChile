@@ -1,0 +1,170 @@
+    private volatile float moveX, moveY;
+    private volatile float joystickX, joystickY, joystickCenterX, joystickCenterY;
+    private volatile int score;
+    private final int goal = 20;
+    private volatile boolean victory;
+
+    private float playerX, playerZ;
+    private float playerYaw;
+    private float cameraYaw = 25f;
+    private float cameraPitch = 18f;
+    private float walkPhase;
+    private float elapsed;
+
+    public GameRenderer(Context context) {
+        this.context = context;
+        generateWorld();
+    }
+
+    private void generateWorld() {
+        for (int i=0; i<TREE_COUNT; i++) {
+            float x, z;
+            do { x = range(-WORLD, WORLD); z = range(-WORLD, WORLD); }
+            while (x*x+z*z < 35f || inPond(x,z));
+            trees[i][0]=x; trees[i][1]=z;
+            trees[i][2]=range(0.75f,1.65f);
+            trees[i][3]=random.nextFloat()*360f;
+        }
+        for (int i=0; i<ROCK_COUNT; i++) {
+            float x,z;
+            do { x=range(-WORLD,WORLD); z=range(-WORLD,WORLD); }
+            while (x*x+z*z<18f || inPond(x,z));
+            rocks[i][0]=x; rocks[i][1]=z;
+            rocks[i][2]=range(0.35f,1.1f); rocks[i][3]=random.nextFloat()*360f;
+        }
+        for (int i=0; i<APPLE_COUNT; i++) respawnApple(i);
+    }
+
+    private boolean inPond(float x,float z) {
+        float px=x-15f, pz=z+10f;
+        return px*px/80f + pz*pz/45f < 1f;
+    }
+
+    private float range(float a,float b) { return a + random.nextFloat()*(b-a); }
+
+    private void respawnApple(int i) {
+        float x,z;
+        do { x=range(-WORLD+3,WORLD-3); z=range(-WORLD+3,WORLD-3); }
+        while (inPond(x,z) || x*x+z*z<9f);
+        apples[i][0]=x; apples[i][1]=0.58f; apples[i][2]=z;
+    }
+
+    public void setMovement(float x,float y) {
+        moveX=x; moveY=y; joystickX=x; joystickY=y;
+    }
+    public void setJoystickCenter(float x,float y) { joystickCenterX=x; joystickCenterY=y; }
+    public void rotateCamera(float dx,float dy) {
+        cameraYaw += dx;
+        cameraPitch = Math.max(8f, Math.min(42f, cameraPitch + dy));
+    }
+    public int getScore(){return score;}
+    public int getGoal(){return goal;}
+    public boolean isVictory(){return victory;}
+    public float getJoystickX(){return joystickX;}
+    public float getJoystickY(){return joystickY;}
+    public float getJoystickCenterX(){return joystickCenterX;}
+    public float getJoystickCenterY(){return joystickCenterY;}
+
+    @Override
+    public void onSurfaceCreated(GL10 gl, EGLConfig config) {
+        GLES20.glClearColor(0.50f,0.76f,0.91f,1f);
+        GLES20.glEnable(GLES20.GL_DEPTH_TEST);
+        GLES20.glEnable(GLES20.GL_CULL_FACE);
+        GLES20.glCullFace(GLES20.GL_BACK);
+        cube=Mesh.cube();
+        sphere=Mesh.sphere(12,18);
+        program=buildProgram(VERTEX,FRAGMENT);
+        aPosition=GLES20.glGetAttribLocation(program,"aPosition");
+        aNormal=GLES20.glGetAttribLocation(program,"aNormal");
+        uMvp=GLES20.glGetUniformLocation(program,"uMVP");
+        uModel=GLES20.glGetUniformLocation(program,"uModel");
+        uColor=GLES20.glGetUniformLocation(program,"uColor");
+        uLight=GLES20.glGetUniformLocation(program,"uLightDir");
+        lastTime=System.nanoTime();
+    }
+
+    @Override
+    public void onSurfaceChanged(GL10 gl,int w,int h) {
+        width=w; height=h;
+        GLES20.glViewport(0,0,w,h);
+        float ratio=(float)w/Math.max(1,h);
+        Matrix.perspectiveM(projection,0,55f,ratio,0.15f,180f);
+    }
+
+    @Override
+    public void onDrawFrame(GL10 gl) {
+        long now=System.nanoTime();
+        float dt=Math.min(0.04f,(now-lastTime)/1_000_000_000f);
+        lastTime=now;
+        elapsed+=dt;
+        update(dt);
+
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT|GLES20.GL_DEPTH_BUFFER_BIT);
+        GLES20.glUseProgram(program);
+        GLES20.glUniform3f(uLight,-0.45f,0.86f,0.32f);
+
+        float yawRad=(float)Math.toRadians(cameraYaw);
+        float pitchRad=(float)Math.toRadians(cameraPitch);
+        float distance=10.8f;
+        float eyeX=playerX-(float)Math.sin(yawRad)*(float)Math.cos(pitchRad)*distance;
+        float eyeZ=playerZ-(float)Math.cos(yawRad)*(float)Math.cos(pitchRad)*distance;
+        float eyeY=2.0f+(float)Math.sin(pitchRad)*distance;
+        Matrix.setLookAtM(view,0,eyeX,eyeY,eyeZ,playerX,1.35f,playerZ,0,1,0);
+
+        drawWorld();
+        drawCapybara();
+    }
+
+    private void update(float dt) {
+        float magnitude=Math.min(1f,(float)Math.sqrt(moveX*moveX+moveY*moveY));
+        if(magnitude>0.08f){
+            float inputAngle=(float)Math.atan2(moveX,-moveY);
+            float direction=(float)Math.toRadians(cameraYaw)+inputAngle;
+            float speed=6.0f*magnitude;
+            float nx=playerX+(float)Math.sin(direction)*speed*dt;
+            float nz=playerZ+(float)Math.cos(direction)*speed*dt;
+            nx=Math.max(-WORLD+1,Math.min(WORLD-1,nx));
+            nz=Math.max(-WORLD+1,Math.min(WORLD-1,nz));
+            if(!inPond(nx,nz)){ playerX=nx; playerZ=nz; }
+            float targetYaw=(float)Math.toDegrees(direction);
+            playerYaw=lerpAngle(playerYaw,targetYaw,Math.min(1f,dt*10f));
+            walkPhase+=dt*10f*magnitude;
+        }
+        for(int i=0;i<APPLE_COUNT;i++){
+            float dx=apples[i][0]-playerX, dz=apples[i][2]-playerZ;
+            if(dx*dx+dz*dz<1.55f*1.55f){
+                score++;
+                if(score>=goal) victory=true;
+                respawnApple(i);
+            }
+        }
+    }
+
+    private float lerpAngle(float a,float b,float t){
+        float d=((b-a+540f)%360f)-180f;
+        return a+d*t;
+    }
+
+    private void drawWorld(){
+        drawCube(0,-0.65f,0, WORLD+3,0.65f,WORLD+3,0, 0.32f,0.62f,0.28f);
+        // paths
+        drawCube(0,0.015f,0, 2.4f,0.025f,WORLD,0, 0.53f,0.43f,0.29f);
+        drawCube(0,0.02f,4, WORLD,0.025f,1.3f,0, 0.50f,0.41f,0.27f);
+        // pond
+        drawSphere(15,0.03f,-10,7.8f,0.10f,5.8f,0, 0.18f,0.55f,0.78f);
+        drawSphere(15,0.05f,-10,6.9f,0.04f,4.9f,0, 0.32f,0.72f,0.88f);
+        // little bridge
+        for(int i=-5;i<=5;i++) drawCube(15+i*0.65f,0.35f,-10,0.28f,0.16f,1.25f,0,0.51f,0.31f,0.16f);
+        drawCube(15,0.45f,-8.65f,3.7f,0.10f,0.10f,0,0.38f,0.22f,0.10f);
+        drawCube(15,0.45f,-11.35f,3.7f,0.10f,0.10f,0,0.38f,0.22f,0.10f);
+
+        for(float[] t:trees) drawTree(t[0],t[1],t[2],t[3]);
+        for(float[] r:rocks) drawRock(r[0],r[1],r[2],r[3]);
+        for(int i=0;i<APPLE_COUNT;i++) drawApple(apples[i][0],apples[i][1]+0.08f*(float)Math.sin(elapsed*2.5f+i),apples[i][2],i);
+        drawFlowers();
+    }
+
+    private void drawTree(float x,float z,float s,float rot){
+        drawCube(x,1.45f*s,z,0.30f*s,1.45f*s,0.30f*s,rot,0.34f,0.19f,0.08f);
+        drawSphere(x,3.35f*s,z,1.25f*s,1.45f*s,1.25f*s,rot,0.14f,0.48f,0.17f);
+        drawSphere(x-0.7f*s,3.05f*s,z+0.15f*s,0.85f*s,1.0f*s,0.85f*s,rot,0.18f,0.57f,0.20f);

@@ -1,0 +1,170 @@
+    public boolean onTouchEvent(MotionEvent event) {
+        int action = event.getActionMasked();
+        int index = event.getActionIndex();
+        int pointerId = event.getPointerId(index);
+
+        if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) {
+            float x = event.getX(index);
+            float y = event.getY(index);
+            if (x < getWidth() * 0.48f && movePointer == -1) {
+                movePointer = pointerId;
+                moveStartX = x;
+                moveStartY = y;
+                renderer.setJoystickCenter(x, y);
+                renderer.setMovement(0f, 0f);
+            } else if (lookPointer == -1) {
+                lookPointer = pointerId;
+                lastLookX = x;
+                lastLookY = y;
+            }
+        } else if (action == MotionEvent.ACTION_MOVE) {
+            for (int i = 0; i < event.getPointerCount(); i++) {
+                int id = event.getPointerId(i);
+                float x = event.getX(i);
+                float y = event.getY(i);
+                if (id == movePointer) {
+                    float radius = 150f * getResources().getDisplayMetrics().density;
+                    float dx = x - moveStartX;
+                    float dy = y - moveStartY;
+                    float len = (float)Math.sqrt(dx*dx + dy*dy);
+                    if (len > radius) { dx *= radius/len; dy *= radius/len; }
+                    renderer.setMovement(dx/radius, dy/radius);
+                } else if (id == lookPointer) {
+                    renderer.rotateCamera((x-lastLookX)*0.28f, (y-lastLookY)*0.18f);
+                    lastLookX = x;
+                    lastLookY = y;
+                }
+            }
+        } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP
+                || action == MotionEvent.ACTION_CANCEL) {
+            if (pointerId == movePointer || action == MotionEvent.ACTION_CANCEL) {
+                movePointer = -1;
+                renderer.setMovement(0f, 0f);
+                renderer.setJoystickCenter(0f, 0f);
+            }
+            if (pointerId == lookPointer || action == MotionEvent.ACTION_CANCEL) {
+                lookPointer = -1;
+            }
+        }
+        if (hudView != null) hudView.invalidate();
+        return true;
+    }
+}
+
+final class Mesh {
+    private final FloatBuffer vertices;
+    private final FloatBuffer normals;
+    private final ShortBuffer indices;
+    private final int indexCount;
+
+    private Mesh(float[] v, float[] n, short[] idx) {
+        vertices = direct(v);
+        normals = direct(n);
+        ByteBuffer ib = ByteBuffer.allocateDirect(idx.length * 2).order(ByteOrder.nativeOrder());
+        indices = ib.asShortBuffer();
+        indices.put(idx).position(0);
+        indexCount = idx.length;
+    }
+
+    private static FloatBuffer direct(float[] values) {
+        ByteBuffer bb = ByteBuffer.allocateDirect(values.length * 4).order(ByteOrder.nativeOrder());
+        FloatBuffer fb = bb.asFloatBuffer();
+        fb.put(values).position(0);
+        return fb;
+    }
+
+    void draw(int positionHandle, int normalHandle) {
+        vertices.position(0);
+        GLES20.glVertexAttribPointer(positionHandle, 3, GLES20.GL_FLOAT, false, 0, vertices);
+        GLES20.glEnableVertexAttribArray(positionHandle);
+        normals.position(0);
+        GLES20.glVertexAttribPointer(normalHandle, 3, GLES20.GL_FLOAT, false, 0, normals);
+        GLES20.glEnableVertexAttribArray(normalHandle);
+        indices.position(0);
+        GLES20.glDrawElements(GLES20.GL_TRIANGLES, indexCount, GLES20.GL_UNSIGNED_SHORT, indices);
+    }
+
+    static Mesh cube() {
+        float[] v = {
+            -1,-1, 1,  1,-1, 1,  1, 1, 1, -1, 1, 1,
+             1,-1,-1, -1,-1,-1, -1, 1,-1,  1, 1,-1,
+            -1,-1,-1, -1,-1, 1, -1, 1, 1, -1, 1,-1,
+             1,-1, 1,  1,-1,-1,  1, 1,-1,  1, 1, 1,
+            -1, 1, 1,  1, 1, 1,  1, 1,-1, -1, 1,-1,
+            -1,-1,-1,  1,-1,-1,  1,-1, 1, -1,-1, 1
+        };
+        float[] n = {
+             0,0,1, 0,0,1, 0,0,1, 0,0,1,
+             0,0,-1,0,0,-1,0,0,-1,0,0,-1,
+            -1,0,0,-1,0,0,-1,0,0,-1,0,0,
+             1,0,0, 1,0,0, 1,0,0, 1,0,0,
+             0,1,0, 0,1,0, 0,1,0, 0,1,0,
+             0,-1,0,0,-1,0,0,-1,0,0,-1,0
+        };
+        short[] i = {
+             0,1,2, 0,2,3, 4,5,6, 4,6,7,
+             8,9,10,8,10,11,12,13,14,12,14,15,
+             16,17,18,16,18,19,20,21,22,20,22,23
+        };
+        return new Mesh(v,n,i);
+    }
+
+    static Mesh sphere(int stacks, int slices) {
+        List<Float> v = new ArrayList<>();
+        List<Float> n = new ArrayList<>();
+        List<Short> idx = new ArrayList<>();
+        for (int y=0; y<=stacks; y++) {
+            float vv = (float)y/stacks;
+            float phi = (float)(Math.PI * vv);
+            float sy = (float)Math.cos(phi);
+            float ring = (float)Math.sin(phi);
+            for (int x=0; x<=slices; x++) {
+                float uu = (float)x/slices;
+                float theta = (float)(2.0*Math.PI*uu);
+                float sx = ring*(float)Math.cos(theta);
+                float sz = ring*(float)Math.sin(theta);
+                v.add(sx); v.add(sy); v.add(sz);
+                n.add(sx); n.add(sy); n.add(sz);
+            }
+        }
+        int row = slices+1;
+        for (int y=0; y<stacks; y++) {
+            for (int x=0; x<slices; x++) {
+                short a=(short)(y*row+x), b=(short)(a+row);
+                idx.add(a); idx.add(b); idx.add((short)(a+1));
+                idx.add((short)(a+1)); idx.add(b); idx.add((short)(b+1));
+            }
+        }
+        float[] va=new float[v.size()], na=new float[n.size()]; short[] ia=new short[idx.size()];
+        for(int k=0;k<v.size();k++) va[k]=v.get(k);
+        for(int k=0;k<n.size();k++) na[k]=n.get(k);
+        for(int k=0;k<idx.size();k++) ia[k]=idx.get(k);
+        return new Mesh(va,na,ia);
+    }
+}
+
+final class GameRenderer implements GLSurfaceView.Renderer {
+    private static final int TREE_COUNT = 75;
+    private static final int APPLE_COUNT = 18;
+    private static final int ROCK_COUNT = 24;
+    private static final float WORLD = 44f;
+
+    private final Context context;
+    private final Random random = new Random(20260801L);
+    private final float[] projection = new float[16];
+    private final float[] view = new float[16];
+    private final float[] model = new float[16];
+    private final float[] mv = new float[16];
+    private final float[] mvp = new float[16];
+    private final float[] normalMatrix = new float[16];
+    private final float[][] trees = new float[TREE_COUNT][4];
+    private final float[][] apples = new float[APPLE_COUNT][3];
+    private final float[][] rocks = new float[ROCK_COUNT][4];
+
+    private Mesh cube;
+    private Mesh sphere;
+    private int program;
+    private int aPosition, aNormal, uMvp, uModel, uColor, uLight;
+    private int width, height;
+    private long lastTime;
+
