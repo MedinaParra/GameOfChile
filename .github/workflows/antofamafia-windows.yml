@@ -1,0 +1,55 @@
+name: Build AntofaMafia Windows
+
+on:
+  push:
+    branches:
+      - agent/antofamafia-v0.2
+  workflow_dispatch:
+
+jobs:
+  export-windows:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Unpack AntofaMafia source
+        shell: bash
+        run: |
+          rm -rf AntofaMafia
+          unzip -q AntofaMafia_v0.2_Source.zip
+          mv AntofaMafia_v0.2 AntofaMafia
+
+      - name: Export with Godot
+        uses: firebelley/godot-export@v6.0.0
+        with:
+          godot_executable_download_url: https://github.com/godotengine/godot-builds/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
+          godot_export_templates_download_url: https://github.com/godotengine/godot-builds/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz
+          relative_project_path: ./AntofaMafia/
+          archive_output: false
+          cache: true
+
+      - name: Stage Windows package
+        shell: bash
+        run: |
+          echo "Exported files:"
+          find AntofaMafia -maxdepth 4 -type f \( -name '*.exe' -o -name '*.pck' \) -print
+          EXE="$(find AntofaMafia -type f -name 'AntofaMafia.exe' | head -1)"
+          if [ -z "$EXE" ]; then
+            echo "AntofaMafia.exe not found"
+            exit 1
+          fi
+          mkdir -p dist/AntofaMafia-Windows
+          cp "$EXE" dist/AntofaMafia-Windows/AntofaMafia.exe
+          PCK="$(find "$(dirname "$EXE")" -maxdepth 1 -type f -name '*.pck' | head -1 || true)"
+          if [ -n "$PCK" ]; then cp "$PCK" dist/AntofaMafia-Windows/; fi
+          cp AntofaMafia/README.md AntofaMafia/LICENSE AntofaMafia/THIRD_PARTY.md dist/AntofaMafia-Windows/
+          cd dist
+          zip -r AntofaMafia_v0.2_Windows.zip AntofaMafia-Windows
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AntofaMafia-v0.2-Windows
+          path: dist/AntofaMafia_v0.2_Windows.zip
+          if-no-files-found: error
