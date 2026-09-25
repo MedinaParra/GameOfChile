@@ -31,22 +31,27 @@ jobs:
           archive_output: false
           cache: true
 
-      - name: Stage Windows package
+      - name: Verify and stage Windows package
         shell: bash
         run: |
-          echo "Exported files:"
-          find AntofaMafia -maxdepth 6 -type f \( -name '*.exe' -o -name '*.pck' \) -print
-          EXE="$(find AntofaMafia -type f -name 'AntofaMafia.exe' | head -1)"
-          if [ -z "$EXE" ]; then
-            echo "AntofaMafia.exe not found"
+          BUILD_DIR="/home/runner/.local/share/godot/builds/Windows Desktop"
+          echo "Godot build output:"
+          ls -lah "$BUILD_DIR"
+          EXE="$BUILD_DIR/AntofaMafia.exe"
+          if [ ! -f "$EXE" ]; then
+            echo "AntofaMafia.exe not found at expected Godot export path"
             exit 1
           fi
+          file "$EXE"
+          sha256sum "$EXE"
           mkdir -p dist/AntofaMafia-Windows
           cp "$EXE" dist/AntofaMafia-Windows/AntofaMafia.exe
-          PCK="$(find "$(dirname "$EXE")" -maxdepth 1 -type f -name '*.pck' | head -1 || true)"
-          if [ -n "$PCK" ]; then cp "$PCK" dist/AntofaMafia-Windows/; fi
+          if [ -f "$BUILD_DIR/AntofaMafia.pck" ]; then
+            cp "$BUILD_DIR/AntofaMafia.pck" dist/AntofaMafia-Windows/
+          fi
           cp AntofaMafia/README.md AntofaMafia/LICENSE AntofaMafia/THIRD_PARTY.md dist/AntofaMafia-Windows/
           (cd dist && zip -r AntofaMafia_v0.2_Windows.zip AntofaMafia-Windows)
+          unzip -l dist/AntofaMafia_v0.2_Windows.zip
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
