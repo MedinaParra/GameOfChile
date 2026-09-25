@@ -13,11 +13,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Unpack AntofaMafia source
+      - name: Reconstruct AntofaMafia source
         shell: bash
         run: |
-          rm -rf AntofaMafia
-          unzip -q AntofaMafia_v0.2_Source.zip
+          cat antofa_bundle.part1.b64 antofa_bundle.part2.b64 antofa_bundle.part3.b64 antofa_bundle.part4.b64 | tr -d '\r\n' | base64 -d > /tmp/AntofaMafia_v0.2_Source.zip
+          unzip -t /tmp/AntofaMafia_v0.2_Source.zip
+          rm -rf AntofaMafia AntofaMafia_v0.2
+          unzip -q /tmp/AntofaMafia_v0.2_Source.zip
           mv AntofaMafia_v0.2 AntofaMafia
 
       - name: Export with Godot
@@ -33,7 +35,7 @@ jobs:
         shell: bash
         run: |
           echo "Exported files:"
-          find AntofaMafia -maxdepth 4 -type f \( -name '*.exe' -o -name '*.pck' \) -print
+          find AntofaMafia -maxdepth 6 -type f \( -name '*.exe' -o -name '*.pck' \) -print
           EXE="$(find AntofaMafia -type f -name 'AntofaMafia.exe' | head -1)"
           if [ -z "$EXE" ]; then
             echo "AntofaMafia.exe not found"
@@ -44,8 +46,7 @@ jobs:
           PCK="$(find "$(dirname "$EXE")" -maxdepth 1 -type f -name '*.pck' | head -1 || true)"
           if [ -n "$PCK" ]; then cp "$PCK" dist/AntofaMafia-Windows/; fi
           cp AntofaMafia/README.md AntofaMafia/LICENSE AntofaMafia/THIRD_PARTY.md dist/AntofaMafia-Windows/
-          cd dist
-          zip -r AntofaMafia_v0.2_Windows.zip AntofaMafia-Windows
+          (cd dist && zip -r AntofaMafia_v0.2_Windows.zip AntofaMafia-Windows)
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
