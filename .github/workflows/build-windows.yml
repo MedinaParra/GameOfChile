@@ -50,3 +50,5 @@ jobs:
           name: AntofaMafia-v0.3-Windows
           path: dist/AntofaMafia_v0.3_Windows.zip
           if-no-files-found: error
+
+# v0.3 complete-package rebuild
