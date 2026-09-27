@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist/AntofaMafia-Windows
-          EXE="$(find . -type f -name 'AntofaMafia.exe' | head -1)"
+          EXE="$(find "$HOME/.local/share/godot/builds" -type f -name 'AntofaMafia.exe' | head -1)"
           if [ -z "$EXE" ]; then
             echo "AntofaMafia.exe not found"
             exit 1
