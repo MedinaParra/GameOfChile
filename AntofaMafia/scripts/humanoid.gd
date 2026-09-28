@@ -1,10 +1,6 @@
 class_name AMHumanoid
 extends Node3D
 
-## Lightweight articulated human made entirely from Godot primitives.
-## No capsule placeholder: torso, pelvis, head, hair, arms, forearms,
-## hands, thighs, shins and shoes are independent articulated parts.
-
 var variant_seed: int = 1
 var anim_time := 0.0
 
@@ -156,6 +152,16 @@ func animate(delta: float, movement: float, sprint := false) -> void:
 	torso.rotation.x = lerpf(torso.rotation.x, -0.10 if sprint and amount > 0.2 else 0.0, minf(1.0, delta * 7.0))
 	torso.position.y = 1.30 + sin(anim_time * 0.5) * 0.012 + absf(sin(anim_time)) * 0.025 * amount
 	head_pivot.rotation.y = sin(anim_time * 0.33) * 0.035 * (1.0 - amount)
+
+func set_first_person_mode(enabled: bool) -> void:
+	# Keep the body when looking down, but remove the head and world-space arms
+	# from the local first-person view so they never clip through the camera.
+	if head_pivot != null:
+		head_pivot.visible = not enabled
+	if left_arm != null:
+		left_arm.visible = not enabled
+	if right_arm != null:
+		right_arm.visible = not enabled
 
 func set_variant(seed_value: int) -> void:
 	variant_seed = seed_value
