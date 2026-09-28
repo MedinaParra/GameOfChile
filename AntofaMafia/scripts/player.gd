@@ -4,17 +4,20 @@ extends CharacterBody3D
 const WALK_SPEED := 6.4
 const RUN_SPEED := 10.8
 const GRAVITY := 28.0
-const MOUSE_SENS := 0.00245
+const MOUSE_SENS := 0.00225
+const EYE_HEIGHT := 1.72
 
 var active := true
 var yaw := 0.0
-var pitch := -0.12
+var pitch := 0.0
 var camera_pivot: Node3D
 var pitch_pivot: Node3D
 var camera: Camera3D
 var body_shape: CollisionShape3D
 var current_car: AMCar = null
 var visual: AMHumanoid
+var viewmodel: Node3D
+var move_time := 0.0
 
 func _ready() -> void:
 	add_to_group("player")
@@ -34,27 +37,58 @@ func _build_body() -> void:
 	visual = AMHumanoid.new()
 	visual.variant_seed = 2026
 	add_child(visual)
+	visual.call_deferred("set_first_person_mode", true)
 
 func _build_camera() -> void:
 	camera_pivot = Node3D.new()
-	camera_pivot.position = Vector3(0.0, 1.42, 0.0)
+	camera_pivot.position = Vector3(0.0, EYE_HEIGHT, 0.0)
 	add_child(camera_pivot)
 
 	pitch_pivot = Node3D.new()
 	camera_pivot.add_child(pitch_pivot)
 
 	camera = Camera3D.new()
-	camera.position = Vector3(0.92, 1.48, 4.85)
-	camera.fov = 67.0
-	camera.near = 0.08
+	camera.position = Vector3.ZERO
+	camera.fov = 76.0
+	camera.near = 0.035
 	camera.current = true
 	pitch_pivot.add_child(camera)
+
+	_build_viewmodel()
+
+func _build_viewmodel() -> void:
+	viewmodel = Node3D.new()
+	viewmodel.position = Vector3(0.0, -0.29, -0.62)
+	camera.add_child(viewmodel)
+
+	var sleeve := StandardMaterial3D.new()
+	sleeve.albedo_color = Color("#243243")
+	sleeve.roughness = 0.86
+	var skin := StandardMaterial3D.new()
+	skin.albedo_color = Color("#d9a17f")
+	skin.roughness = 0.92
+
+	# Two forearms visible at the bottom of the first-person camera.
+	_vm_box(Vector3(0.16, 0.16, 0.58), Vector3(-0.28, -0.02, 0.0), sleeve, -0.10)
+	_vm_box(Vector3(0.16, 0.16, 0.58), Vector3(0.28, -0.02, 0.0), sleeve, 0.10)
+	_vm_box(Vector3(0.18, 0.14, 0.23), Vector3(-0.28, -0.02, -0.39), skin, -0.08)
+	_vm_box(Vector3(0.18, 0.14, 0.23), Vector3(0.28, -0.02, -0.39), skin, 0.08)
+
+func _vm_box(size: Vector3, pos: Vector3, mat: Material, yaw_offset: float) -> void:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	mi.material_override = mat
+	mi.position = pos
+	mi.rotation.y = yaw_offset
+	viewmodel.add_child(mi)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and active and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		yaw -= event.relative.x * MOUSE_SENS
-		pitch = clampf(pitch - event.relative.y * MOUSE_SENS, -0.72, 0.48)
-		camera_pivot.rotation.y = yaw
+		pitch = clampf(pitch - event.relative.y * MOUSE_SENS, -1.38, 1.30)
+		rotation.y = yaw
 		pitch_pivot.rotation.x = pitch
 
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_E:
@@ -98,8 +132,8 @@ func _physics_process(delta: float) -> void:
 	var speed := RUN_SPEED if sprinting else WALK_SPEED
 	var target := world_dir * speed
 
-	velocity.x = move_toward(velocity.x, target.x, 28.0 * delta)
-	velocity.z = move_toward(velocity.z, target.z, 28.0 * delta)
+	velocity.x = move_toward(velocity.x, target.x, 30.0 * delta)
+	velocity.z = move_toward(velocity.z, target.z, 30.0 * delta)
 	if not is_on_floor():
 		velocity.y -= GRAVITY * delta
 	else:
@@ -110,9 +144,15 @@ func _physics_process(delta: float) -> void:
 	var movement_amount := clampf(Vector2(velocity.x, velocity.z).length() / RUN_SPEED, 0.0, 1.0)
 	visual.animate(delta, movement_amount, sprinting)
 
-	if world_dir.length_squared() > 0.05:
-		var target_yaw := atan2(-world_dir.x, -world_dir.z)
-		rotation.y = lerp_angle(rotation.y, target_yaw, minf(1.0, delta * 10.0))
+	# Small FPS head-bob + arm sway. Deliberately restrained to avoid nausea.
+	if movement_amount > 0.03 and is_on_floor():
+		move_time += delta * (11.0 if sprinting else 7.5)
+		camera_pivot.position.y = EYE_HEIGHT + sin(move_time * 2.0) * 0.014 * movement_amount
+		viewmodel.position.x = sin(move_time) * 0.010 * movement_amount
+		viewmodel.position.y = -0.29 + absf(sin(move_time * 2.0)) * 0.012 * movement_amount
+	else:
+		camera_pivot.position.y = lerpf(camera_pivot.position.y, EYE_HEIGHT, minf(1.0, delta * 8.0))
+		viewmodel.position = viewmodel.position.lerp(Vector3(0.0, -0.29, -0.62), minf(1.0, delta * 8.0))
 
 func set_driving(car: AMCar) -> void:
 	current_car = car
@@ -130,3 +170,4 @@ func leave_car(exit_pos: Vector3) -> void:
 	collision_mask = 1
 	camera.current = true
 	current_car = null
+	rotation.y = yaw
