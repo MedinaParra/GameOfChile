@@ -12,6 +12,7 @@ var speed := 0.0
 var active := false
 var driver: AMPlayer = null
 var camera: Camera3D
+var steering_wheel: Node3D
 
 func _ready() -> void:
 	add_to_group("vehicle")
@@ -40,6 +41,7 @@ func _build_car() -> void:
 	_part(Vector3(1.66,0.72,1.85),Vector3(0,1.27,-0.1),glass)
 	_part(Vector3(1.72,0.11,1.5),Vector3(0,1.67,-0.1),red)
 	_part(Vector3(1.85,0.18,1.1),Vector3(0,0.98,1.55),red)
+
 	for sx in [-1.0,1.0]:
 		for sz in [-1.0,1.0]:
 			var wheel := MeshInstance3D.new()
@@ -53,6 +55,31 @@ func _build_car() -> void:
 			wheel.position = Vector3(sx*1.02,0.40,sz*1.43)
 			add_child(wheel)
 
+	# Minimal cockpit visible from the driver's eyes.
+	var dash := _mat(Color("#20252b"), 0.72)
+	_part(Vector3(1.75,0.22,0.36), Vector3(0,1.20,-0.78), dash)
+	steering_wheel = Node3D.new()
+	steering_wheel.position = Vector3(-0.38,1.31,-0.57)
+	add_child(steering_wheel)
+	var wheel_ring := MeshInstance3D.new()
+	var cylw := CylinderMesh.new()
+	cylw.top_radius = 0.26
+	cylw.bottom_radius = 0.26
+	cylw.height = 0.055
+	wheel_ring.mesh = cylw
+	wheel_ring.material_override = dark
+	wheel_ring.rotation.x = PI/2.0
+	steering_wheel.add_child(wheel_ring)
+	var hub := MeshInstance3D.new()
+	var hubm := CylinderMesh.new()
+	hubm.top_radius = 0.09
+	hubm.bottom_radius = 0.09
+	hubm.height = 0.075
+	hub.mesh = hubm
+	hub.material_override = dark
+	hub.rotation.x = PI/2.0
+	steering_wheel.add_child(hub)
+
 func _part(size: Vector3, pos: Vector3, mat: Material) -> void:
 	var mi := MeshInstance3D.new()
 	var bm := BoxMesh.new()
@@ -63,14 +90,13 @@ func _part(size: Vector3, pos: Vector3, mat: Material) -> void:
 	add_child(mi)
 
 func _build_camera() -> void:
-	var pivot := Node3D.new()
-	pivot.position = Vector3(0,1.2,0)
-	add_child(pivot)
 	camera = Camera3D.new()
-	camera.position = Vector3(0.7,2.4,7.0)
-	camera.fov = 72.0
+	# Driver-eye position, first person. Car forward is local -Z.
+	camera.position = Vector3(-0.38, 1.47, 0.05)
+	camera.fov = 78.0
+	camera.near = 0.035
 	camera.current = false
-	pivot.add_child(camera)
+	add_child(camera)
 
 func enter_driver(p: AMPlayer) -> void:
 	if active:
@@ -117,6 +143,7 @@ func _physics_process(delta: float) -> void:
 		steer -= 1.0
 	if absf(speed) > 0.5:
 		rotation.y += steer*1.6*delta*(1.0 if speed >= 0 else -1.0)
+	steering_wheel.rotation.z = lerpf(steering_wheel.rotation.z, steer*0.55, minf(1.0,delta*9.0))
 
 	var forward := -transform.basis.z
 	velocity.x = forward.x*speed
