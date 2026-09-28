@@ -3,7 +3,7 @@ name: Build AntofaMafia Windows
 on:
   push:
     branches:
-      - agent/antofamafia-v0.3
+      - agent/antofamafia-v0.4-fps
   workflow_dispatch:
 
 jobs:
@@ -42,13 +42,11 @@ jobs:
           if [ -n "$PCK" ]; then cp "$PCK" dist/AntofaMafia-Windows/; fi
           cp AntofaMafia/README.md AntofaMafia/LICENSE AntofaMafia/THIRD_PARTY.md dist/AntofaMafia-Windows/
           cd dist
-          zip -r AntofaMafia_v0.3_Windows.zip AntofaMafia-Windows
+          zip -r AntofaMafia_v0.4_FPS_Windows.zip AntofaMafia-Windows
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AntofaMafia-v0.3-Windows
-          path: dist/AntofaMafia_v0.3_Windows.zip
+          name: AntofaMafia-v0.4-FPS-Windows
+          path: dist/AntofaMafia_v0.4_FPS_Windows.zip
           if-no-files-found: error
-
-# v0.3 complete-package rebuild
