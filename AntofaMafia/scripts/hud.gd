@@ -18,7 +18,7 @@ const Z1 := 600.0
 
 func _ready() -> void:
 	var title := Label.new()
-	title.text = "ANTOFAMAFIA v0.3"
+	title.text = "ANTOFAMAFIA v0.4 • FPS"
 	title.position = Vector2(24,20)
 	title.add_theme_font_size_override("font_size",28)
 	add_child(title)
@@ -34,8 +34,30 @@ func _ready() -> void:
 	speed_label.add_theme_font_size_override("font_size",18)
 	add_child(speed_label)
 
+	var mode := Label.new()
+	mode.text = "PRIMERA PERSONA"
+	mode.position = Vector2(24,120)
+	mode.add_theme_font_size_override("font_size",14)
+	add_child(mode)
+
+	# Minimal crosshair at screen centre.
+	var crosshair := Label.new()
+	crosshair.text = "+"
+	crosshair.anchor_left = 0.5
+	crosshair.anchor_top = 0.5
+	crosshair.anchor_right = 0.5
+	crosshair.anchor_bottom = 0.5
+	crosshair.offset_left = -10
+	crosshair.offset_top = -16
+	crosshair.offset_right = 10
+	crosshair.offset_bottom = 16
+	crosshair.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	crosshair.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	crosshair.add_theme_font_size_override("font_size",22)
+	add_child(crosshair)
+
 	var frame := ColorRect.new()
-	frame.color = Color(0.03,0.04,0.05,0.85)
+	frame.color = Color(0.03,0.04,0.05,0.82)
 	frame.anchor_left = 1.0
 	frame.anchor_right = 1.0
 	frame.offset_left = -235
@@ -61,7 +83,7 @@ func _ready() -> void:
 	mini_map.add_child(mission_marker)
 
 	var help := Label.new()
-	help.text = "WASD mover • Shift correr • E auto • Espacio freno • M mapa"
+	help.text = "Mouse mirar • WASD mover/manejar • Shift correr • E auto • Espacio freno • M mapa"
 	help.anchor_top = 1.0
 	help.anchor_bottom = 1.0
 	help.anchor_right = 1.0
