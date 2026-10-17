@@ -1,0 +1,82 @@
+name: Build A-tatis ChatGPT Page APK
+
+on:
+  push:
+    branches:
+      - agent/atatis-chatgpt-page-apk
+    paths-ignore:
+      - 'releases/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: atatis-chatgpt-apk
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Configure Android SDK
+        shell: bash
+        run: |
+          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null || true
+          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager \
+            'platform-tools' \
+            'platforms;android-35' \
+            'build-tools;35.0.0'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Build APK
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Prepare release files
+        shell: bash
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/releases/atatis"
+          cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/releases/atatis/Atatis_Bosque_ChatGPT.apk"
+          cd "$GITHUB_WORKSPACE/releases/atatis"
+          sha256sum Atatis_Bosque_ChatGPT.apk > Atatis_Bosque_ChatGPT.apk.sha256
+          unzip -t Atatis_Bosque_ChatGPT.apk >/dev/null
+          /usr/local/lib/android/sdk/build-tools/35.0.0/aapt dump badging Atatis_Bosque_ChatGPT.apk | head -n 8
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Atatis-Bosque-ChatGPT-APK
+          path: |
+            releases/atatis/Atatis_Bosque_ChatGPT.apk
+            releases/atatis/Atatis_Bosque_ChatGPT.apk.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish APK in branch
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add releases/atatis/Atatis_Bosque_ChatGPT.apk releases/atatis/Atatis_Bosque_ChatGPT.apk.sha256
+          if git diff --cached --quiet; then
+            echo "No release change to commit."
+          else
+            git commit -m "Publish A-tatis ChatGPT Page APK"
+            git push
+          fi
