@@ -1,0 +1,50 @@
+name: Import La Portada v16 source
+on:
+  push:
+    branches:
+      - codex/upload-la-portada-v16-20261107
+permissions:
+  contents: write
+concurrency:
+  group: import-la-portada-v16
+  cancel-in-progress: false
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.repository == 'MedinaParra/GameOfChile'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 1
+      - name: Check payload availability
+        id: payload
+        run: |
+          if [ -f payload/manifest.json ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Source transfer is still in progress."
+          fi
+      - name: Verify and restore exact source commit
+        if: steps.payload.outputs.ready == 'true'
+        env:
+          SOURCE_COMMIT: 6d3c7c2bc0b6d650c910ac7b0ecb96060e484ab2
+          SOURCE_TREE: c650c3238623ff552d31c4f4d5b01bcecf06ed9e
+          BASE_COMMIT: 59a1e3bb6d0864166d69782087d9c43abee46586
+        run: |
+          python3 .github/restore_bundle.py
+          git fetch --no-tags --depth=1 origin "$BASE_COMMIT"
+          git bundle verify "$RUNNER_TEMP/la-portada-v16.bundle"
+          git fetch "$RUNNER_TEMP/la-portada-v16.bundle" refs/heads/la-portada-v16:refs/heads/la-portada-v16
+          test "$(git rev-parse la-portada-v16)" = "$SOURCE_COMMIT"
+          test "$(git rev-parse la-portada-v16^{tree})" = "$SOURCE_TREE"
+          test "$(git ls-tree -r --name-only la-portada-v16 | wc -l | tr -d ' ')" = "10547"
+          git push origin refs/heads/la-portada-v16:refs/heads/la-portada-v16
+          test "$(git ls-remote origin refs/heads/la-portada-v16 | cut -f1)" = "$SOURCE_COMMIT"
+          echo "Verified all 10547 source files in la-portada-v16." >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove completed transfer branch
+        if: steps.payload.outputs.ready == 'true'
+        env:
+          UPLOAD_SHA: ${{ github.sha }}
+        run: |
+          git push --force-with-lease="refs/heads/codex/upload-la-portada-v16-20261107:$UPLOAD_SHA" origin :refs/heads/codex/upload-la-portada-v16-20261107
